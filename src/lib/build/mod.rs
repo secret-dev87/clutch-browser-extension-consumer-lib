@@ -26,7 +26,7 @@ pub async fn smart_contract_code_generation() -> eyre::Result<()> {
     let bindings_for = vec![
         "SoulWallet",
         "SoulWalletFactory",
-        // "EntryPoint",
+        "EntryPoint",
         // "TokenPaymaster",
         // "GuardianMultiSigWallet",
         // "ClutchWalletProxy",
