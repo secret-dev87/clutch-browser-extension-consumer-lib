@@ -1,0 +1,1 @@
+cargo run --bin gen_abi
