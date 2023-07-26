@@ -13,7 +13,12 @@ use ethers::{
     types::{Address, U256},
 };
 
+use crate::utils::{abis::*, bundler::UserOpErrCodes, guardians::HookInputData};
+
+use super::{account_abstraction::get_user_op_hash, signatures::pack_signature};
 use super::bundler::UserOperationTransport;
+use super::guardians::GuardHookInputData;
+use super::signatures::pack_user_op_hash;
 
 #[derive(Debug, Clone)]
 pub struct WalletLib {
@@ -23,6 +28,16 @@ pub struct WalletLib {
     default_callback_handler_address: Address, //_defaultCallbackHandlerAddress
     key_store_module_address: Address, // _keyStoreModuleAddress
     security_control_module_address: Address, // _securityControlModuleAddress
+    entry_point_address: Address,
+    wallet_logic_address: Address,
+    chain_id: u64,
+}
+
+#[derive(Debug, Clone)]
+pub struct PreFund {
+    deposit: String,
+    prefund: String,
+    missfund: String,
 }
 
 impl WalletLib {
@@ -33,6 +48,9 @@ impl WalletLib {
         default_callback_handler_address: &str,
         key_store_module_address: &str,
         security_control_module_address: &str,
+        entry_point_address: &str,
+        wallet_logic_address: &str,
+        chain_id: u64,
     ) -> Self {
         Self {
             provider: provider.to_string(),
@@ -45,6 +63,9 @@ impl WalletLib {
             security_control_module_address: security_control_module_address
                 .parse::<Address>()
                 .unwrap(),
+            entry_point_address: entry_point_address.parse().unwrap(),
+            wallet_logic_address: wallet_logic_address.parse().unwrap(),
+            chain_id,
         }
     }
 
@@ -136,7 +157,14 @@ impl WalletLib {
         initial_guard_hash: &str,
         initial_guardian_safeperiod: &str,
     ) -> eyre::Result<UserOperationTransport> {
-        let sender = self.calc_wallet_address(index, initial_key, initial_guard_hash, initial_guardian_safeperiod).await?;
+        let sender = self
+            .calc_wallet_address(
+                index,
+                initial_key,
+                initial_guard_hash,
+                initial_guardian_safeperiod,
+            )
+            .await?;
 
         let abi = abi_soul_wallet_factory();
         let initial_key = initial_key.parse::<Address>().unwrap();
@@ -147,31 +175,182 @@ impl WalletLib {
             .await?;
         let index = U256::from_str_radix(index, 16).unwrap();
         let index = format!("{:030x}", index); //remove '0x' prefix
-        let init_code = abi.function("createWallet")?.encode_input(&[
-            Token::Bytes(initialize_data), Token::FixedBytes(index.clone().into_bytes())
-        ]).map_err(|e| {
-            eyre::eyre!(
-                "Failed to encode input for ClutchWallet initialize function: {}",
-                e
-            )
-        })?;
+        let init_code = abi
+            .function("createWallet")?
+            .encode_input(&[
+                Token::Bytes(initialize_data),
+                Token::FixedBytes(index.clone().into_bytes()),
+            ])
+            .map_err(|e| {
+                eyre::eyre!(
+                    "Failed to encode input for ClutchWallet initialize function: {}",
+                    e
+                )
+            })?;
         let init_code = [self.wallet_factory_address.as_bytes(), init_code.as_ref()].concat();
 
-        let user_operation = UserOperationTransport{
+        let user_operation = UserOperationTransport {
             sender,
             nonce: U256::from(0),
             init_code: ethers::types::Bytes::from(init_code),
             call_data: ethers::types::Bytes::from(b"0x"),
-            call_gas_limit: U256::from(0), 
+            call_gas_limit: U256::from(0),
             verification_gas_limit: U256::from(0),
             pre_verification_gas: U256::from(10000000),
             max_fee_per_gas: U256::from(0),
             max_priority_fee_per_gas: U256::from(0),
             paymaster_and_data: ethers::types::Bytes::from(b"0x"),
-            signature: ethers::types::Bytes::from(b"0x")
+            signature: ethers::types::Bytes::from(b"0x"),
         };
 
-        Ok(user_operation)        
+        Ok(user_operation)
+    }
+
+    pub async fn estimate_user_op_gas(user_op: UserOperationTransport) {
+        unimplemented!()
+    }
+
+    pub async fn pre_fund(&self, user_op: UserOperationTransport) -> eyre::Result<PreFund> {
+        /*
+        function _getRequiredPrefund(MemoryUserOp memory mUserOp) internal pure returns (uint256 requiredPrefund) {
+            unchecked {
+                //when using a Paymaster, the verificationGasLimit is used also to as a limit for the postOp call.
+                // our security model might call postOp eventually twice
+                uint256 mul = mUserOp.paymaster != address(0) ? 3 : 1;
+                uint256 requiredGas = mUserOp.callGasLimit + mUserOp.verificationGasLimit * mul + mUserOp.preVerificationGas;
+
+                requiredPrefund = requiredGas * mUserOp.maxFeePerGas;
+            }
+        }
+        */
+        let zero = U256::from(0);
+        let max_fee_per_gas = user_op.max_fee_per_gas;
+        let pre_verification_gas = user_op.pre_verification_gas;
+        let verification_gas_limit = user_op.verification_gas_limit;
+        let call_gas_limit = user_op.call_gas_limit;
+
+        if max_fee_per_gas == zero || pre_verification_gas == zero || verification_gas_limit == zero
+        {
+            return Err(eyre::eyre!(
+                "maxFeePerGas, preVerificationGas, verficiationGasLimit must > 0"
+            ));
+        }
+
+        let mul = match user_op
+            .paymaster_and_data
+            .eq_ignore_ascii_case("0x".as_bytes())
+        {
+            true => U256::from(3),
+            false => U256::from(1),
+        };
+
+        let required_gas = call_gas_limit
+            .checked_add(verification_gas_limit.checked_mul(mul).unwrap())
+            .unwrap()
+            .checked_add(pre_verification_gas)
+            .unwrap();
+        let required_prefund = required_gas.checked_mul(max_fee_per_gas).unwrap();
+        let provider = Provider::<Http>::try_from(self.provider.clone())?;
+
+        let entry_point_contract =
+            super::abis::EntryPointContract::new(self.entry_point_address, Arc::new(provider));
+
+        let deposit: U256 = entry_point_contract.balance_of(user_op.sender).await?;
+        let missfund = match deposit.lt(&required_prefund) {
+            true => required_prefund.checked_sub(deposit).unwrap(),
+            false => zero,
+        };
+
+        let ret = PreFund {
+            deposit: format!("0x{}", deposit),
+            prefund: format!("0x{}", required_prefund),
+            missfund: format!("0x{}", missfund),
+        };
+        Ok(ret)
+    }
+
+    pub async fn user_op_hash(&self, user_op: UserOperationTransport) -> eyre::Result<Vec<u8>> {
+        let user_op_hash =
+            get_user_op_hash(user_op, self.entry_point_address, self.chain_id).unwrap();
+        Ok(user_op_hash)
+    }
+
+    pub async fn pack_user_op_hash(
+        &self,
+        user_op: UserOperationTransport,
+        valid_after: Option<u64>,
+        valid_until: Option<u64>,
+    ) -> eyre::Result<(Vec<u8>, Vec<u8>)> {
+        let user_op_hash = self.user_op_hash(user_op).await?;
+        let ret = pack_user_op_hash(user_op_hash, valid_after, valid_until).unwrap();
+        Ok(ret)
+    }
+
+    async fn guard_hook_list(&self, wallet_address: Address) -> eyre::Result<Vec<Address>> {
+        // function listPlugin(uint8 hookType) external view returns (address[] memory plugins);
+        let provider = Provider::<Http>::try_from(self.provider.clone())?;
+        let wallet_contract = WalletContract::new(wallet_address, Arc::new(provider));
+        let guard_hook_list: Vec<Address> = wallet_contract.list_plugin(1).await?;
+        Ok(guard_hook_list)
+    }
+
+    pub async fn pack_user_op_signature(
+        &self,
+        signature: Vec<u8>,
+        validation_data: Vec<u8>,
+        guard_hook_input_data: Option<GuardHookInputData>,
+    ) -> eyre::Result<Vec<u8>> {
+        let mut hook_input_data: Option<HookInputData> = None;
+        if let Some(guard_hook_data) = guard_hook_input_data {
+            let guard_hooks = self.guard_hook_list(guard_hook_data.sender).await?;
+
+            hook_input_data = Some(HookInputData {
+                guard_hooks: guard_hooks,
+                input_data: guard_hook_data.input_data,
+            });
+        }
+
+        let pack_signature = pack_signature(signature, validation_data, hook_input_data)?;
+        Ok(pack_signature)
+    }
+
+    pub async fn estimate_user_operation_gas(
+        &self,
+        user_op: UserOperationTransport,
+        semi_valid_guard_hook_input_data: Option<GuardHookInputData>,
+    ) -> eyre::Result<bool> {
+        if let Some(semi_valid_guard_input_data) = semi_valid_guard_hook_input_data.clone() {
+            if semi_valid_guard_input_data.sender.ne(&user_op.sender) {
+                return Err(eyre::eyre!(
+                    "error code:{:?}, invalid sender {}",
+                    UserOpErrCodes::UnknownError,
+                    semi_valid_guard_input_data.sender
+                ));
+            }
+
+            if user_op.init_code.eq("0x".as_bytes()) {
+                return Err(eyre::eyre!(
+                    "error code:{:?}, cannot set semi valid guard hook input data when the contract wallet is not deployed {}",
+                    UserOpErrCodes::UnknownError,
+                    semi_valid_guard_input_data.sender
+                ));
+            }
+        }
+
+        let semi_valid_signature = user_op.signature.eq_ignore_ascii_case("0x".as_bytes());
+
+        if semi_valid_signature {
+            let signature = "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff".as_bytes().to_vec();
+            let validation_data = (U256::from(68719476735 as u64) << U256::from(160))
+                + (U256::from(1599999999) << U256::from(160 + 48));
+            let signature_ret = self.pack_user_op_signature(
+                signature,
+                validation_data.to_string().into_bytes(),
+                semi_valid_guard_hook_input_data,
+            );
+        }
+
+        unimplemented!()
     }
 }
 
