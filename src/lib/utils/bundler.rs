@@ -22,6 +22,21 @@ pub struct UserOperationTransport {
     pub signature: ::ethers::core::types::Bytes,
 }
 
+#[derive(Debug, Clone)]
+pub enum UserOpErrCodes {
+    UnknownError = -1,
+    InvalidUserOp = -32602,
+    EntryPointValidationFailed = -32500,
+    PaymasterValidationFailed = -32501,
+    OpcodeValidationFailed = -32502,
+    TimeRangeValidationFailed = -32503,
+    PaymasterThrottled = -32504,
+    PaymasterStakeTooLow = -32505,
+    UnsupportedSignatureAggregator = -32506,
+    SignatureValidationFailed = -32507,
+}
+
+#[derive(Debug, Clone)]
 pub struct GasEstimates {
     pub call_gas_limit: U256,
     pub verification_gas: U256,
