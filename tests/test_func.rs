@@ -7,6 +7,7 @@ use std::{
 };
 
 use clutch_wallet_lib::utils::wallet_lib::{abi_soul_wallet, WalletLib};
+use ethers::types::U256;
 
 #[test]
 fn test_json() {
@@ -18,17 +19,25 @@ fn test_json() {
 
 #[tokio::test]
 async fn test_create_wallet() {
-    let wallet_lib = WalletLib::new(
-        "http://localhost:8545",
-        "http://localhost:3000/rpc",
-        "0x721ebda8f508e9de26d0a522d29679df34c7872b",
-        "0x9670a43e5e820e920c10d3bb2f018571fedb9b6e",
-        "0x6c3a9f19aa9c3c659fbf0ad6721ed48aba48f239",
-        "0x9670a43e5e820e920c10d3bb2f018571fedb9b6e",
-    );
+    // let wallet_lib = WalletLib::new(
+    //     "http://localhost:8545",
+    //     "http://localhost:3000/rpc",
+    //     "0x721ebda8f508e9de26d0a522d29679df34c7872b",
+    //     "0x9670a43e5e820e920c10d3bb2f018571fedb9b6e",
+    //     "0x6c3a9f19aa9c3c659fbf0ad6721ed48aba48f239",
+    //     "0x9670a43e5e820e920c10d3bb2f018571fedb9b6e",
+    // );
 
-    let abc = wallet_lib.create_unsigned_deploy_wallet_user_op("0xFFFF",
-    "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789",
-    "ABC",
-    "0xFFFF").await;    
+    // let abc = wallet_lib.create_unsigned_deploy_wallet_user_op("0xFFFF",
+    // "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789",
+    // "ABC",
+    // "0xFFFF").await;
+}
+#[test]
+fn test_ethereum_type() {
+    let valid_after = U256::from(11600);
+    let valid_until = U256::from(13700);
+
+    let validation_data = (valid_until << U256::from(160)) + (valid_after << U256::from(160 + 48));
+    println!("===={}", validation_data.);
 }
