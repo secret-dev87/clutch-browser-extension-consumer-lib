@@ -3,6 +3,7 @@ use std::{
     fs::{self, File},
     io::Read,
     path::{Path, PathBuf},
+    str::from_utf8,
     sync::Arc,
 };
 
@@ -77,7 +78,7 @@ impl WalletLib {
     pub async fn initialize_data(
         &self,
         initial_key: Address,
-        initial_guardian_hash: FixedBytes,
+        initial_guardian_hash: String,
         initial_guardian_safeperiod: Option<i32>,
     ) -> eyre::Result<Vec<u8>> {
         /*
@@ -92,18 +93,24 @@ impl WalletLib {
             Some(safe_period) => safe_period,
             None => self.default_initial_guardian_safe_period,
         };
-        let initial_guardian_safeperiod = U256::from(initial_guardian_safeperiod);
+        
+        let safeperiod_str = format!("{:064x}", initial_guardian_safeperiod);
+
         let guardian_safe_period_str = format!("{:030x}", initial_guardian_safeperiod); // remove '0x' so the length is 30
         let security_control_module_and_data = [
             self.security_control_module_address.as_bytes(),
             guardian_safe_period_str.as_bytes(),
         ]
         .concat();
-        let key_store_init_data = encode(&[
-            Token::Address(initial_key),
-            Token::FixedBytes(initial_guardian_hash),
-            Token::Uint(initial_guardian_safeperiod),
-        ]);
+        
+        let initial_key_padding_zero = format!("0x{}{:x}", "0".repeat(24), initial_key); //we need 32 bytes: initial key is 20 bytes so add 12 bytes
+        let key_store_init_data = [
+            initial_key_padding_zero.into_bytes(),
+            initial_guardian_hash.into_bytes(),
+            safeperiod_str.into_bytes(),
+        ]
+        .concat();        
+
         let abi = abi_soul_wallet();
         let initialize_data = abi
             .function("initialize")?
@@ -130,11 +137,10 @@ impl WalletLib {
         &self,
         index: i32,
         initial_key: &str,
-        initial_guard_hash: &str,
+        initial_guard_hash: String,
         initial_guardian_safeperiod: Option<i32>,
     ) -> eyre::Result<Address> {
         let initial_key = initial_key.parse::<Address>().unwrap();
-        let initial_guard_hash = FixedBytes::from(initial_guard_hash);
         let initialize_data = self
             .initialize_data(initial_key, initial_guard_hash, initial_guardian_safeperiod)
             .await?;
@@ -162,22 +168,23 @@ impl WalletLib {
         &self,
         index: i32,
         initial_key: &str,
-        initial_guard_hash: &str,
+        initial_guard_hash: String,
+        call_data: &str,
         initial_guardian_safeperiod: Option<i32>,
     ) -> eyre::Result<UserOperationTransport> {
-        let sender = self
-            .calc_wallet_address(
-                index,
-                initial_key,
-                initial_guard_hash,
-                initial_guardian_safeperiod,
-            )
-            .await?;
+        let initial_guard_hash = initial_guard_hash.replace("0x", "");
+        let sender = Address::from_low_u64_be(123);
+        // let sender = self
+        //     .calc_wallet_address(
+        //         index,
+        //         initial_key,
+        //         initial_guard_hash.clone(),
+        //         initial_guardian_safeperiod,
+        //     )
+        //     .await?;
 
         let abi = abi_soul_wallet_factory();
         let initial_key = initial_key.parse::<Address>().unwrap();
-        let initial_guard_hash = FixedBytes::from(initial_guard_hash);
-
         let initialize_data = self
             .initialize_data(initial_key, initial_guard_hash, initial_guardian_safeperiod)
             .await?;
