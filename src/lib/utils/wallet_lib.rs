@@ -15,10 +15,10 @@ use ethers::{
 
 use crate::utils::{abis::*, bundler::UserOpErrCodes, guardians::HookInputData};
 
-use super::{account_abstraction::get_user_op_hash, signatures::pack_signature};
 use super::bundler::UserOperationTransport;
 use super::guardians::GuardHookInputData;
 use super::signatures::pack_user_op_hash;
+use super::{account_abstraction::get_user_op_hash, signatures::pack_signature};
 
 #[derive(Debug, Clone)]
 pub struct WalletLib {
@@ -31,6 +31,8 @@ pub struct WalletLib {
     entry_point_address: Address,
     wallet_logic_address: Address,
     chain_id: u64,
+    days: i32,
+    default_initial_guardian_safe_period: i32,
 }
 
 #[derive(Debug, Clone)]
@@ -52,6 +54,7 @@ impl WalletLib {
         wallet_logic_address: &str,
         chain_id: u64,
     ) -> Self {
+        let days = 86400;
         Self {
             provider: provider.to_string(),
             bundler: bundler.to_string(),
@@ -66,6 +69,8 @@ impl WalletLib {
             entry_point_address: entry_point_address.parse().unwrap(),
             wallet_logic_address: wallet_logic_address.parse().unwrap(),
             chain_id,
+            days: days,
+            default_initial_guardian_safe_period: 2 * days,
         }
     }
 
@@ -73,7 +78,7 @@ impl WalletLib {
         &self,
         initial_key: Address,
         initial_guardian_hash: FixedBytes,
-        initial_guardian_safeperiod: &str,
+        initial_guardian_safeperiod: Option<i32>,
     ) -> eyre::Result<Vec<u8>> {
         /*
             function initialize(
@@ -83,8 +88,11 @@ impl WalletLib {
                 bytes[] calldata plugins
             )
         */
-        let initial_guardian_safeperiod =
-            U256::from_str_radix(initial_guardian_safeperiod, 16).unwrap();
+        let initial_guardian_safeperiod = match initial_guardian_safeperiod {
+            Some(safe_period) => safe_period,
+            None => self.default_initial_guardian_safe_period,
+        };
+        let initial_guardian_safeperiod = U256::from(initial_guardian_safeperiod);
         let guardian_safe_period_str = format!("{:030x}", initial_guardian_safeperiod); // remove '0x' so the length is 30
         let security_control_module_and_data = [
             self.security_control_module_address.as_bytes(),
@@ -120,10 +128,10 @@ impl WalletLib {
 
     pub async fn calc_wallet_address(
         &self,
-        index: &str,
+        index: i32,
         initial_key: &str,
         initial_guard_hash: &str,
-        initial_guardian_safeperiod: &str,
+        initial_guardian_safeperiod: Option<i32>,
     ) -> eyre::Result<Address> {
         let initial_key = initial_key.parse::<Address>().unwrap();
         let initial_guard_hash = FixedBytes::from(initial_guard_hash);
@@ -139,7 +147,7 @@ impl WalletLib {
             Arc::new(provider),
         );
 
-        let index = U256::from_str_radix(index, 16).unwrap();
+        let index = U256::from(index);
         let salt: [u8; 32] = index.try_into().unwrap();
         let initialize_data = ethers::types::Bytes::from(initialize_data);
 
@@ -152,10 +160,10 @@ impl WalletLib {
 
     pub async fn create_unsigned_deploy_wallet_user_op(
         &self,
-        index: &str,
+        index: i32,
         initial_key: &str,
         initial_guard_hash: &str,
-        initial_guardian_safeperiod: &str,
+        initial_guardian_safeperiod: Option<i32>,
     ) -> eyre::Result<UserOperationTransport> {
         let sender = self
             .calc_wallet_address(
@@ -173,7 +181,7 @@ impl WalletLib {
         let initialize_data = self
             .initialize_data(initial_key, initial_guard_hash, initial_guardian_safeperiod)
             .await?;
-        let index = U256::from_str_radix(index, 16).unwrap();
+        let index = U256::from(index);
         let index = format!("{:030x}", index); //remove '0x' prefix
         let init_code = abi
             .function("createWallet")?
