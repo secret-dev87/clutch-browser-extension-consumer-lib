@@ -8,7 +8,8 @@ use std::{
 };
 
 use ethers::{
-    abi::{self, encode, FixedBytes, Token},
+    abi::{self, FixedBytes, Token},
+    contract::encode_function_data,
     prelude::*,
     providers::Provider,
     types::{Address, U256},
@@ -80,7 +81,7 @@ impl WalletLib {
         initial_key: Address,
         initial_guardian_hash: String,
         initial_guardian_safeperiod: Option<i32>,
-    ) -> eyre::Result<Vec<u8>> {
+    ) -> eyre::Result<Bytes> {
         /*
             function initialize(
                 address anOwner,
@@ -93,28 +94,32 @@ impl WalletLib {
             Some(safe_period) => safe_period,
             None => self.default_initial_guardian_safe_period,
         };
-        
+
         let safeperiod_str = format!("{:064x}", initial_guardian_safeperiod);
 
-        let guardian_safe_period_str = format!("{:030x}", initial_guardian_safeperiod); // remove '0x' so the length is 30
         let security_control_module_and_data = [
             self.security_control_module_address.as_bytes(),
-            guardian_safe_period_str.as_bytes(),
+            safeperiod_str.as_bytes(),
         ]
         .concat();
-        
+
         let initial_key_padding_zero = format!("0x{}{:x}", "0".repeat(24), initial_key); //we need 32 bytes: initial key is 20 bytes so add 12 bytes
         let key_store_init_data = [
             initial_key_padding_zero.into_bytes(),
             initial_guardian_hash.into_bytes(),
             safeperiod_str.into_bytes(),
         ]
-        .concat();        
+        .concat();
+
+        // println!(
+        //     "key store init data {:?}",
+        //     from_utf8(&key_store_init_data.clone())
+        // );
 
         let abi = abi_soul_wallet();
-        let initialize_data = abi
-            .function("initialize")?
-            .encode_input(&[
+        let initialize_data = encode_function_data(
+            abi.function("initialize")?,
+            (
                 Token::Address(initial_key),
                 Token::Address(self.default_callback_handler_address),
                 Token::Array(vec![
@@ -122,14 +127,11 @@ impl WalletLib {
                     Token::Bytes(key_store_init_data),
                 ]),
                 Token::Array(vec![]),
-            ])
-            .map_err(|e| {
-                eyre::eyre!(
-                    "Failed to encode input for ClutchWallet initialize function: {}",
-                    e
-                )
-            })?;
+            ),
+        )
+        .unwrap();
 
+        println!("initialize data {:?}", initialize_data);
         Ok(initialize_data)
     }
 
@@ -173,15 +175,14 @@ impl WalletLib {
         initial_guardian_safeperiod: Option<i32>,
     ) -> eyre::Result<UserOperationTransport> {
         let initial_guard_hash = initial_guard_hash.replace("0x", "");
-        let sender = Address::from_low_u64_be(123);
-        // let sender = self
-        //     .calc_wallet_address(
-        //         index,
-        //         initial_key,
-        //         initial_guard_hash.clone(),
-        //         initial_guardian_safeperiod,
-        //     )
-        //     .await?;
+        let sender = self
+            .calc_wallet_address(
+                index,
+                initial_key,
+                initial_guard_hash.clone(),
+                initial_guardian_safeperiod,
+            )
+            .await?;
 
         let abi = abi_soul_wallet_factory();
         let initial_key = initial_key.parse::<Address>().unwrap();
@@ -193,7 +194,7 @@ impl WalletLib {
         let init_code = abi
             .function("createWallet")?
             .encode_input(&[
-                Token::Bytes(initialize_data),
+                Token::Bytes(initialize_data.to_vec()),
                 Token::FixedBytes(index.clone().into_bytes()),
             ])
             .map_err(|e| {
