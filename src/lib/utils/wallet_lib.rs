@@ -1,4 +1,5 @@
 use std::{
+    convert::TryInto,
     env,
     fs::{self, File},
     io::Read,
@@ -8,7 +9,7 @@ use std::{
 };
 
 use ethers::{
-    abi::{self, FixedBytes, Token},
+    abi::{self, encode, ethabi::Bytes, FixedBytes, Token},
     contract::encode_function_data,
     prelude::*,
     providers::Provider,
@@ -16,6 +17,7 @@ use ethers::{
 };
 
 use crate::utils::{abis::*, bundler::UserOpErrCodes, guardians::HookInputData};
+use ethers::core::types::{H160, H256};
 
 use super::bundler::UserOperationTransport;
 use super::guardians::GuardHookInputData;
@@ -81,7 +83,7 @@ impl WalletLib {
         initial_key: Address,
         initial_guardian_hash: String,
         initial_guardian_safeperiod: Option<i32>,
-    ) -> eyre::Result<Bytes> {
+    ) -> eyre::Result<ethers::core::types::Bytes> {
         /*
             function initialize(
                 address anOwner,
@@ -95,26 +97,29 @@ impl WalletLib {
             None => self.default_initial_guardian_safe_period,
         };
 
-        let safeperiod_str = format!("{:064x}", initial_guardian_safeperiod);
+        let default_initial_guardian_safe_period: H256 =
+            format!("{:064x}", self.default_initial_guardian_safe_period)
+                .parse()
+                .unwrap();
+        let initial_guardian_safeperiod:H256 = format!("{:064x}", initial_guardian_safeperiod)
+        .parse()
+        .unwrap();
+        let mut security_control_module_and_data: Vec<u8> = Vec::new();
+        security_control_module_and_data
+            .extend_from_slice(self.security_control_module_address.as_bytes());
+        security_control_module_and_data
+            .extend_from_slice(default_initial_guardian_safe_period.as_bytes());
 
-        let security_control_module_and_data = [
-            self.security_control_module_address.as_bytes(),
-            safeperiod_str.as_bytes(),
-        ]
-        .concat();
-
-        let initial_key_padding_zero = format!("0x{}{:x}", "0".repeat(24), initial_key); //we need 32 bytes: initial key is 20 bytes so add 12 bytes
-        let key_store_init_data = [
-            initial_key_padding_zero.into_bytes(),
-            initial_guardian_hash.into_bytes(),
-            safeperiod_str.into_bytes(),
-        ]
-        .concat();
-
-        // println!(
-        //     "key store init data {:?}",
-        //     from_utf8(&key_store_init_data.clone())
-        // );
+        let zero_hash: H256 = [0u8; 32].into();
+        let initial_key_h256: H256 = H256::from(initial_key);
+        let mut key_store_module_and_data :Vec<u8>= Vec::new();
+        key_store_module_and_data.extend_from_slice(self.key_store_module_address.as_bytes());
+        let key_store_init_data = encode(&[
+            Token::FixedBytes(FixedBytes::from(initial_key_h256.clone().to_fixed_bytes())),
+            Token::FixedBytes(FixedBytes::from(zero_hash.to_fixed_bytes())),
+            Token::FixedBytes(FixedBytes::from(initial_guardian_safeperiod.to_fixed_bytes())),
+        ]);
+        key_store_module_and_data.extend_from_slice(&key_store_init_data);
 
         let abi = abi_soul_wallet();
         let initialize_data = encode_function_data(
@@ -124,7 +129,7 @@ impl WalletLib {
                 Token::Address(self.default_callback_handler_address),
                 Token::Array(vec![
                     Token::Bytes(security_control_module_and_data),
-                    Token::Bytes(key_store_init_data),
+                    Token::Bytes(key_store_module_and_data),
                 ]),
                 Token::Array(vec![]),
             ),
