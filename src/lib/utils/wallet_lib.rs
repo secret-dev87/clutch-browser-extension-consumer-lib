@@ -4,7 +4,7 @@ use std::{
     fs::{self, File},
     io::Read,
     path::{Path, PathBuf},
-    str::from_utf8,
+    str::{from_utf8, FromStr},
     sync::Arc,
 };
 
@@ -81,7 +81,7 @@ impl WalletLib {
     pub async fn initialize_data(
         &self,
         initial_key: Address,
-        initial_guardian_hash: String,
+        initial_guardian_hash: H256,
         initial_guardian_safeperiod: Option<i32>,
     ) -> eyre::Result<ethers::core::types::Bytes> {
         /*
@@ -110,13 +110,13 @@ impl WalletLib {
         security_control_module_and_data
             .extend_from_slice(default_initial_guardian_safe_period.as_bytes());
 
-        let zero_hash: H256 = [0u8; 32].into();
+        // let zero_hash: H256 = [0u8; 32].into();
         let initial_key_h256: H256 = H256::from(initial_key);
         let mut key_store_module_and_data :Vec<u8>= Vec::new();
         key_store_module_and_data.extend_from_slice(self.key_store_module_address.as_bytes());
         let key_store_init_data = encode(&[
             Token::FixedBytes(FixedBytes::from(initial_key_h256.clone().to_fixed_bytes())),
-            Token::FixedBytes(FixedBytes::from(zero_hash.to_fixed_bytes())),
+            Token::FixedBytes(FixedBytes::from(initial_guardian_hash.to_fixed_bytes())),
             Token::FixedBytes(FixedBytes::from(initial_guardian_safeperiod.to_fixed_bytes())),
         ]);
         key_store_module_and_data.extend_from_slice(&key_store_init_data);
@@ -144,7 +144,7 @@ impl WalletLib {
         &self,
         index: i32,
         initial_key: &str,
-        initial_guard_hash: String,
+        initial_guard_hash: H256,
         initial_guardian_safeperiod: Option<i32>,
     ) -> eyre::Result<Address> {
         let initial_key = initial_key.parse::<Address>().unwrap();
@@ -161,8 +161,7 @@ impl WalletLib {
         );
 
         let index = U256::from(index);
-        let salt: [u8; 32] = index.try_into().unwrap();
-        let initialize_data = ethers::types::Bytes::from(initialize_data);
+        let salt: [u8; 32] = index.try_into().unwrap();        
 
         let wallet_addr = wallet_factory
             .get_wallet_address(initialize_data, salt)
@@ -175,11 +174,10 @@ impl WalletLib {
         &self,
         index: i32,
         initial_key: &str,
-        initial_guard_hash: String,
+        initial_guard_hash: H256,
         call_data: &str,
         initial_guardian_safeperiod: Option<i32>,
-    ) -> eyre::Result<UserOperationTransport> {
-        let initial_guard_hash = initial_guard_hash.replace("0x", "");
+    ) -> eyre::Result<UserOperationTransport> {        
         let sender = self
             .calc_wallet_address(
                 index,

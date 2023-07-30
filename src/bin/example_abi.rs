@@ -1,4 +1,5 @@
 use clutch_wallet_lib::{build::smart_contract_code_generation, utils::wallet_lib::WalletLib};
+use ethers::types::H256;
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
@@ -13,8 +14,9 @@ async fn main() -> eyre::Result<()> {
         "0xbd9fe2927251593d1073bb4e5538c76a3afd816c",
         1337
     );
-    
-    let zero_hash = format!("0x{}", "0".repeat(64));
+        
+    let zero_hash: H256 = [0u8; 32].into();
+    // println!("======{}", zero_hash.);
     let user_op = wallet_lib.create_unsigned_deploy_wallet_user_op(
     0,
     "0x9Ab87E0BdDE47882d7b2De186Ae9A866A292dB7A",
