@@ -171,8 +171,6 @@ impl BundlerClient {
             user_operation: user_operation_transport,
         };
 
-        println!("{:?}", user_op_list);
-
         let user_operation_hash: String = provider
             .request("eth_sendUserOperation", user_op_list)
             .await?;
@@ -193,14 +191,6 @@ impl BundlerClient {
         &self,
         user_operation_transport: UserOperationTransport,
     ) -> eyre::Result<UserOpGas> {
-        
-        println!("========entry point{:?}", self.entry_point_address.clone());
-        println!("========user op{:?}", user_operation_transport);
-        // let user_op_list = UserOperationList {
-        //     entry_point_address: self.entry_point_address,
-        //     user_operation: user_operation_transport,
-        // };
-
 
         let provider = Http::from_str(self.bundler_api.as_str())?;
 
