@@ -3,7 +3,7 @@ use ethers::types::H256;
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
-    let wallet_lib = WalletLib::new(
+    let mut wallet_lib = WalletLib::new(
         "http://localhost:8545",
         "http://localhost:3000/rpc",
         "0x721ebda8f508e9de26d0a522d29679df34c7872b",
@@ -17,7 +17,7 @@ async fn main() -> eyre::Result<()> {
         
     let zero_hash: H256 = [0u8; 32].into();
     // println!("======{}", zero_hash.);
-    let user_op = wallet_lib.create_unsigned_deploy_wallet_user_op(
+    let mut user_op = wallet_lib.create_unsigned_deploy_wallet_user_op(
     0,
     "0x9Ab87E0BdDE47882d7b2De186Ae9A866A292dB7A",
     zero_hash,
@@ -25,6 +25,14 @@ async fn main() -> eyre::Result<()> {
     None
     ).await?;
     //check this value with the result of soulwallet javascript library
-    // println!("{:?}", user_op);
+    // println!("User operation {:?}", user_op);
+
+    let gas_price = "100";// gwei
+    user_op.max_fee_per_gas = ethers::utils::parse_units(gas_price, "gwei").unwrap().into();
+    user_op.max_priority_fee_per_gas = ethers::utils::parse_units(gas_price, "gwei").unwrap().into();
+
+    let ret = wallet_lib.estimate_user_operation_gas(user_op, None).await?;
+
+    println!("=============={ret}");
     Ok(())
 }

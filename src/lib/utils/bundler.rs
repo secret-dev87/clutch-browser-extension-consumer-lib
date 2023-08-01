@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_tuple::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct UserOperationTransport {
     pub sender: ::ethers::core::types::Address,
     pub nonce: ::ethers::core::types::U256,
@@ -37,7 +38,7 @@ pub enum UserOpErrCodes {
 }
 
 #[derive(Debug, Clone)]
-pub struct GasEstimates {
+pub struct UserOpGas {
     pub call_gas_limit: U256,
     pub verification_gas: U256,
     pub pre_verification_gas: U256,
@@ -51,6 +52,7 @@ pub struct UserOperationList {
     entry_point_address: Address,
 }
 
+#[derive(Debug, Clone)]
 pub struct BundlerClient {
     pub entry_point_address: Address,
     provider: Provider<Http>,
@@ -189,28 +191,26 @@ impl BundlerClient {
     /// * `Result<U256, eyre::Error>` - The gas estimate
     pub async fn eth_estimate_user_operation_gas(
         &self,
-        _user_operation_transport: UserOperationTransport,
-    ) -> eyre::Result<GasEstimates> {
-        // let provider = Http::from_str(self.bundler_api.as_str())?;
-
+        user_operation_transport: UserOperationTransport,
+    ) -> eyre::Result<UserOpGas> {
+        
+        println!("========entry point{:?}", self.entry_point_address.clone());
+        println!("========user op{:?}", user_operation_transport);
         // let user_op_list = UserOperationList {
         //     entry_point_address: self.entry_point_address,
         //     user_operation: user_operation_transport,
         // };
 
-        // not sure the format this returns - need to try for real to understand
-        // let gas: ??? = provider
-        //     .request("eth_estimateUserOperationGas", user_op_list)
-        //     .await?;
 
-        // {
-        //     preVerificationGas: '0xc51c',
-        //     verificationGas: '0x06d076',
-        //     validAfter: '0x0fffffff',
-        //     validUntil: '0x0fffffff',
-        //     callGasLimit: '0xb479'
-        //   }
-        Ok(GasEstimates {
+        let provider = Http::from_str(self.bundler_api.as_str())?;
+
+        let estimate_gas:(U256, U256, U256, U256, U256)= provider
+            .request("eth_estimateUserOperationGas", (user_operation_transport, self.entry_point_address))
+            .await?;
+
+        println!("========gas{:?}", estimate_gas);
+
+        Ok(UserOpGas {
             call_gas_limit: U256::from(1),
             verification_gas: U256::from(2),
             pre_verification_gas: U256::from(3),
