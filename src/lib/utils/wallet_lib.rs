@@ -43,9 +43,9 @@ pub struct WalletLib {
 
 #[derive(Debug, Clone)]
 pub struct PreFund {
-    deposit: String,
-    prefund: String,
-    missfund: String,
+    deposit: U256,
+    prefund: U256,
+    missfund: U256,
 }
 
 impl WalletLib {
@@ -247,7 +247,7 @@ impl WalletLib {
             }
         }
         */
-        let zero = U256::from(0);
+        let zero = U256::zero();
         let max_fee_per_gas = user_op.max_fee_per_gas;
         let pre_verification_gas = user_op.pre_verification_gas;
         let verification_gas_limit = user_op.verification_gas_limit;
@@ -262,7 +262,7 @@ impl WalletLib {
 
         let mul = match user_op
             .paymaster_and_data
-            .eq_ignore_ascii_case("0x".as_bytes())
+            .eq_ignore_ascii_case("".as_bytes())
         {
             true => U256::from(3),
             false => U256::from(1),
@@ -286,9 +286,9 @@ impl WalletLib {
         };
 
         let ret = PreFund {
-            deposit: format!("0x{}", deposit),
-            prefund: format!("0x{}", required_prefund),
-            missfund: format!("0x{}", missfund),
+            deposit: deposit,
+            prefund: required_prefund,
+            missfund: missfund,
         };
         Ok(ret)
     }
@@ -398,7 +398,7 @@ impl WalletLib {
             user_op.call_gas_limit = new_call_gas_limit;
         }
 
-        calc_gas_overhead(user_op.clone());
+        calc_gas_overhead(user_op);
         Ok(true)
     }
 }
