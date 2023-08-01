@@ -1,5 +1,13 @@
 use clutch_wallet_lib::utils::wallet_lib::WalletLib;
-use ethers::types::H256;
+use ethers::{
+    prelude::SignerMiddleware,
+    providers::{Http, Middleware, Provider},
+    signers::{LocalWallet, Signer},
+    types::{Address, Chain, TransactionRequest, H256, U256},
+    utils,
+};
+
+use std::str::FromStr;
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
@@ -26,8 +34,6 @@ async fn main() -> eyre::Result<()> {
             None,
         )
         .await?;
-    //check this value with the result of soulwallet javascript library
-    // println!("User operation {:?}", user_op);
 
     let gas_price = "100"; // gwei
     user_op.max_fee_per_gas = ethers::utils::parse_units(gas_price, "gwei")
@@ -37,10 +43,27 @@ async fn main() -> eyre::Result<()> {
         .unwrap()
         .into();
 
-    let ret = wallet_lib
+    let _ = wallet_lib
         .estimate_user_operation_gas(&mut user_op, None)
         .await?;
 
-    println!("=============={ret}");
+    let pre_fund_ret = wallet_lib.pre_fund(user_op).await?;
+    println!("======{:?}", pre_fund_ret);
+
+    // let provider = Provider
+    let wallet = "5329363575be632f77c012647ecba5c2f1915617904214bbc57d92e4f4016007"
+        .parse::<LocalWallet>()
+        .unwrap()
+        .with_chain_id(1337 as u64);
+    let http = Provider::<Http>::try_from("http://localhost:8545")?;
+    let provider = SignerMiddleware::new(http.clone(), wallet.clone());
+
+    let tx = TransactionRequest::new()
+        .to(Address::from_str("0x0e5Dfa093a7b8274cCbee4c27F2f08368ec99CE5").unwrap())
+        .value(U256::from(utils::parse_ether(1)?));
+
+    let tx = provider.send_transaction(tx, None).await?.await?;
+
+    println!("Transaction Receipt: {}", serde_json::to_string(&tx)?);
     Ok(())
 }
