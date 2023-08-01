@@ -19,7 +19,7 @@ use ethers::{
 use crate::utils::{abis::*, bundler::UserOpErrCodes, guardians::HookInputData};
 use ethers::core::types::{H160, H256};
 
-use super::bundler::UserOperationTransport;
+use super::bundler::{UserOperationTransport, BundlerClient};
 use super::guardians::GuardHookInputData;
 use super::signatures::pack_user_op_hash;
 use super::{account_abstraction::get_user_op_hash, signatures::pack_signature};
@@ -37,6 +37,7 @@ pub struct WalletLib {
     chain_id: u64,
     days: i32,
     default_initial_guardian_safe_period: i32,
+    bundler_client: BundlerClient,
 }
 
 #[derive(Debug, Clone)]
@@ -59,6 +60,8 @@ impl WalletLib {
         chain_id: u64,
     ) -> Self {
         let days = 86400;
+        let http_provider = Provider::<Http>::try_from(provider.clone()).unwrap();
+        let bundler_client = BundlerClient::new(Address::from_str(entry_point_address).unwrap(), http_provider, bundler.to_string());        
         Self {
             provider: provider.to_string(),
             bundler: bundler.to_string(),
@@ -75,6 +78,7 @@ impl WalletLib {
             chain_id,
             days: days,
             default_initial_guardian_safe_period: 2 * days,
+            bundler_client
         }
     }
 
@@ -136,7 +140,6 @@ impl WalletLib {
         )
         .unwrap();
 
-        println!("initialize data {:?}", initialize_data);
         Ok(initialize_data)
     }
 
@@ -153,8 +156,6 @@ impl WalletLib {
             .await?;
 
         let provider = Provider::<Http>::try_from(self.provider.clone())?;
-        // let wallet: LocalWallet = "9131cbad8e7e5369d670022b3ea8781d7ed83681a3720d3e551833816c2fb6a4".parse::<LocalWallet>()?.with_chain_id(1337 as u64);
-        // let client = SignerMiddleware::new(provider.clone(), wallet.clone());
         let wallet_factory = super::abis::WalletFactoryContract::new(
             self.wallet_factory_address,
             Arc::new(provider),
@@ -193,12 +194,12 @@ impl WalletLib {
             .initialize_data(initial_key, initial_guard_hash, initial_guardian_safeperiod)
             .await?;
         let index = U256::from(index);
-        let index = format!("{:030x}", index); //remove '0x' prefix
+        let index: [u8; 32] = index.try_into().unwrap();                
         let init_code = abi
             .function("createWallet")?
             .encode_input(&[
                 Token::Bytes(initialize_data.to_vec()),
-                Token::FixedBytes(index.clone().into_bytes()),
+                Token::FixedBytes(FixedBytes::from(index)),
             ])
             .map_err(|e| {
                 eyre::eyre!(
@@ -206,27 +207,25 @@ impl WalletLib {
                     e
                 )
             })?;
+
+        println!("init_code {}", ethers::types::Bytes::from(init_code.clone()));
         let init_code = [self.wallet_factory_address.as_bytes(), init_code.as_ref()].concat();
 
         let user_operation = UserOperationTransport {
             sender,
             nonce: U256::from(0),
             init_code: ethers::types::Bytes::from(init_code),
-            call_data: ethers::types::Bytes::from(b"0x"),
+            call_data: ethers::types::Bytes::from(b""),
             call_gas_limit: U256::from(0),
             verification_gas_limit: U256::from(0),
             pre_verification_gas: U256::from(10000000),
             max_fee_per_gas: U256::from(0),
             max_priority_fee_per_gas: U256::from(0),
-            paymaster_and_data: ethers::types::Bytes::from(b"0x"),
-            signature: ethers::types::Bytes::from(b"0x"),
+            paymaster_and_data: ethers::types::Bytes::from(b""),
+            signature: ethers::types::Bytes::from(b""),
         };
-
+        
         Ok(user_operation)
-    }
-
-    pub async fn estimate_user_op_gas(user_op: UserOperationTransport) {
-        unimplemented!()
     }
 
     pub async fn pre_fund(&self, user_op: UserOperationTransport) -> eyre::Result<PreFund> {
@@ -334,7 +333,7 @@ impl WalletLib {
     }
 
     pub async fn estimate_user_operation_gas(
-        &self,
+        &mut self,
         user_op: UserOperationTransport,
         semi_valid_guard_hook_input_data: Option<GuardHookInputData>,
     ) -> eyre::Result<bool> {
@@ -368,7 +367,9 @@ impl WalletLib {
                 semi_valid_guard_hook_input_data,
             );
         }
+        self.bundler_client.init().await?;
 
+        let user_op_gas_ret = self.bundler_client.eth_estimate_user_operation_gas(user_op).await?;
         unimplemented!()
     }
 }
