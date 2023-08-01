@@ -1,13 +1,13 @@
-use std::str::from_utf8;
-
 use ethers::{
     abi::FixedBytes,
     abi::{encode, encode_packed, Address, Token},
     prelude::k256::pkcs8::der::Encode,
     providers::Map,
-    types::{Bytes, U256},
+    types::{Bytes, H256, U256, U64},
     utils::keccak256,
 };
+
+use std::str::FromStr;
 
 use super::guardians::{GuardHookInputData, HookInputData};
 
@@ -53,12 +53,12 @@ pub fn pack_user_op_hash(
 
 pub fn pack_signature(
     signature: Vec<u8>,
-    validation_data: Vec<u8>,
+    validation_data: U256,
     hook_input_data: Option<HookInputData>,
 ) -> eyre::Result<Vec<u8>> {
     //check the signautre is only eoa signature
     let mut guard_hook_input_data_bytes: Vec<u8> = Vec::new();
-    if signature.len() != 132 {
+    if signature.len() != 65 {
         return Err(eyre::eyre!("Invalid EOA signature"));
     }
 
@@ -68,25 +68,29 @@ pub fn pack_signature(
         }
 
         for guardian_hook_plugin_address in hook_input_data.guard_hooks.iter() {
-            guard_hook_input_data_bytes
-                .append(&mut guardian_hook_plugin_address.to_string().into_bytes());
+            guard_hook_input_data_bytes.extend_from_slice(guardian_hook_plugin_address.as_bytes());
             let guard_hook_input_data = (&hook_input_data)
                 .input_data
                 .get(&guardian_hook_plugin_address)
                 .unwrap();
-            let guard_hook_input_data_length = format!("{:012x}", guard_hook_input_data.len() / 2) ;
-            guard_hook_input_data_bytes.append(&mut guard_hook_input_data_length.into_bytes());
-            guard_hook_input_data_bytes.append(&mut guard_hook_input_data.clone());
+            let guard_hook_input_data_length = U64::from(guard_hook_input_data.len() / 2);
+            guard_hook_input_data_bytes
+                .extend_from_slice(guard_hook_input_data_length.to_string().as_bytes());
+            guard_hook_input_data_bytes.extend_from_slice(guard_hook_input_data.as_slice());
         }
     }
 
-    let validation_data = U256::from_str_radix(from_utf8(&validation_data).unwrap(), 16).unwrap();
     if guard_hook_input_data_bytes.len() > 0 || validation_data.gt(&U256::from(0)) {
-        let sign_type = "01";
-        let validation_data_hex = format!("{:030x}", validation_data);
-        let packed_signature = format!("0x{sign_type}{validation_data_hex}{:?}{:?}", signature, guard_hook_input_data_bytes);
-        Ok(packed_signature.into_bytes())
-    }else {
+        let sign_type = ethers::types::Bytes::from_str("0x01").unwrap();
+        let validation_data_hex: H256 = H256(validation_data.try_into().unwrap());
+        let mut packed_signature: Vec<u8> = Vec::new();
+        packed_signature.extend_from_slice(&sign_type.to_vec());
+        packed_signature.extend_from_slice(validation_data_hex.as_bytes());
+        packed_signature.extend_from_slice(&signature);
+        packed_signature.extend_from_slice(&guard_hook_input_data_bytes);
+
+        Ok(packed_signature)
+    } else {
         Ok(signature)
-    }    
+    }
 }

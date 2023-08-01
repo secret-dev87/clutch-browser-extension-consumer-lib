@@ -37,13 +37,14 @@ pub enum UserOpErrCodes {
     SignatureValidationFailed = -32507,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct UserOpGas {
     pub call_gas_limit: U256,
-    pub verification_gas: U256,
+    pub verification_gas_limit: U256,
     pub pre_verification_gas: U256,
     pub valid_after: U256,
-    pub valid_before: U256,
+    pub valid_until: U256,
 }
 
 #[derive(Serialize_tuple, Deserialize_tuple, Debug)]
@@ -191,21 +192,15 @@ impl BundlerClient {
         &self,
         user_operation_transport: UserOperationTransport,
     ) -> eyre::Result<UserOpGas> {
-
         let provider = Http::from_str(self.bundler_api.as_str())?;
 
-        let estimate_gas:(U256, U256, U256, U256, U256)= provider
-            .request("eth_estimateUserOperationGas", (user_operation_transport, self.entry_point_address))
+        let estimate_gas: UserOpGas = provider
+            .request(
+                "eth_estimateUserOperationGas",
+                (user_operation_transport, self.entry_point_address),
+            )
             .await?;
 
-        println!("========gas{:?}", estimate_gas);
-
-        Ok(UserOpGas {
-            call_gas_limit: U256::from(1),
-            verification_gas: U256::from(2),
-            pre_verification_gas: U256::from(3),
-            valid_after: U256::from(4),
-            valid_before: U256::from(5),
-        })
+        Ok(estimate_gas)
     }
 }

@@ -1,15 +1,14 @@
 use std::{
     convert::TryInto,
-    env,
-    fs::{self, File},
+    fs::File,
     io::Read,
     path::{Path, PathBuf},
-    str::{from_utf8, FromStr},
+    str::FromStr,
     sync::Arc,
 };
 
 use ethers::{
-    abi::{self, encode, ethabi::Bytes, FixedBytes, Token},
+    abi::{self, encode, FixedBytes, Token},
     contract::encode_function_data,
     prelude::*,
     providers::Provider,
@@ -17,9 +16,9 @@ use ethers::{
 };
 
 use crate::utils::{abis::*, bundler::UserOpErrCodes, guardians::HookInputData};
-use ethers::core::types::{H160, H256};
+use ethers::core::types::H256;
 
-use super::bundler::{UserOperationTransport, BundlerClient};
+use super::bundler::{BundlerClient, UserOperationTransport};
 use super::guardians::GuardHookInputData;
 use super::signatures::pack_user_op_hash;
 use super::{account_abstraction::get_user_op_hash, signatures::pack_signature};
@@ -61,7 +60,11 @@ impl WalletLib {
     ) -> Self {
         let days = 86400;
         let http_provider = Provider::<Http>::try_from(provider.clone()).unwrap();
-        let bundler_client = BundlerClient::new(Address::from_str(entry_point_address).unwrap(), http_provider, bundler.to_string());        
+        let bundler_client = BundlerClient::new(
+            Address::from_str(entry_point_address).unwrap(),
+            http_provider,
+            bundler.to_string(),
+        );
         Self {
             provider: provider.to_string(),
             bundler: bundler.to_string(),
@@ -78,7 +81,7 @@ impl WalletLib {
             chain_id,
             days: days,
             default_initial_guardian_safe_period: 2 * days,
-            bundler_client
+            bundler_client,
         }
     }
 
@@ -105,9 +108,9 @@ impl WalletLib {
             format!("{:064x}", self.default_initial_guardian_safe_period)
                 .parse()
                 .unwrap();
-        let initial_guardian_safeperiod:H256 = format!("{:064x}", initial_guardian_safeperiod)
-        .parse()
-        .unwrap();
+        let initial_guardian_safeperiod: H256 = format!("{:064x}", initial_guardian_safeperiod)
+            .parse()
+            .unwrap();
         let mut security_control_module_and_data: Vec<u8> = Vec::new();
         security_control_module_and_data
             .extend_from_slice(self.security_control_module_address.as_bytes());
@@ -116,12 +119,14 @@ impl WalletLib {
 
         // let zero_hash: H256 = [0u8; 32].into();
         let initial_key_h256: H256 = H256::from(initial_key);
-        let mut key_store_module_and_data :Vec<u8>= Vec::new();
+        let mut key_store_module_and_data: Vec<u8> = Vec::new();
         key_store_module_and_data.extend_from_slice(self.key_store_module_address.as_bytes());
         let key_store_init_data = encode(&[
             Token::FixedBytes(FixedBytes::from(initial_key_h256.clone().to_fixed_bytes())),
             Token::FixedBytes(FixedBytes::from(initial_guardian_hash.to_fixed_bytes())),
-            Token::FixedBytes(FixedBytes::from(initial_guardian_safeperiod.to_fixed_bytes())),
+            Token::FixedBytes(FixedBytes::from(
+                initial_guardian_safeperiod.to_fixed_bytes(),
+            )),
         ]);
         key_store_module_and_data.extend_from_slice(&key_store_init_data);
 
@@ -162,7 +167,7 @@ impl WalletLib {
         );
 
         let index = U256::from(index);
-        let salt: [u8; 32] = index.try_into().unwrap();        
+        let salt: [u8; 32] = index.try_into().unwrap();
 
         let wallet_addr = wallet_factory
             .get_wallet_address(initialize_data, salt)
@@ -178,7 +183,7 @@ impl WalletLib {
         initial_guard_hash: H256,
         call_data: &str,
         initial_guardian_safeperiod: Option<i32>,
-    ) -> eyre::Result<UserOperationTransport> {        
+    ) -> eyre::Result<UserOperationTransport> {
         let sender = self
             .calc_wallet_address(
                 index,
@@ -194,7 +199,7 @@ impl WalletLib {
             .initialize_data(initial_key, initial_guard_hash, initial_guardian_safeperiod)
             .await?;
         let index = U256::from(index);
-        let index: [u8; 32] = index.try_into().unwrap();                
+        let index: [u8; 32] = index.try_into().unwrap();
         let init_code = abi
             .function("createWallet")?
             .encode_input(&[
@@ -207,7 +212,7 @@ impl WalletLib {
                     e
                 )
             })?;
-        
+
         let init_code = [self.wallet_factory_address.as_bytes(), init_code.as_ref()].concat();
 
         let user_operation = UserOperationTransport {
@@ -223,7 +228,7 @@ impl WalletLib {
             paymaster_and_data: ethers::types::Bytes::from(b""),
             signature: ethers::types::Bytes::from(b""),
         };
-        
+
         Ok(user_operation)
     }
 
@@ -314,7 +319,7 @@ impl WalletLib {
     pub async fn pack_user_op_signature(
         &self,
         signature: Vec<u8>,
-        validation_data: Vec<u8>,
+        validation_data: U256,
         guard_hook_input_data: Option<GuardHookInputData>,
     ) -> eyre::Result<Vec<u8>> {
         let mut hook_input_data: Option<HookInputData> = None;
@@ -355,22 +360,31 @@ impl WalletLib {
             }
         }
 
-        let semi_valid_signature = user_op.signature.eq_ignore_ascii_case("".as_bytes());        
+        let semi_valid_signature = user_op.signature.eq_ignore_ascii_case("".as_bytes());
         if semi_valid_signature {
-            let signature = "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff".as_bytes().to_vec();
+            let signature = ethers::types::Bytes::from_str("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff").unwrap();
             let validation_data = (U256::from(68719476735 as u64) << U256::from(160))
                 + (U256::from(1599999999) << U256::from(160 + 48));
-            let signature_ret = self.pack_user_op_signature(
-                signature,
-                validation_data.to_string().into_bytes(),
-                semi_valid_guard_hook_input_data,
-            ).await?;
+            let signature_ret = self
+                .pack_user_op_signature(
+                    signature.to_vec(),
+                    validation_data,
+                    semi_valid_guard_hook_input_data,
+                )
+                .await?;
 
+            println!(
+                "signature ret{}",
+                ethers::types::Bytes::from(signature_ret.clone())
+            );
             user_op.signature = ethers::types::Bytes::from(signature_ret);
         }
         self.bundler_client.init().await?;
 
-        let user_op_gas_ret = self.bundler_client.eth_estimate_user_operation_gas(user_op).await?;
+        let user_op_gas_ret = self
+            .bundler_client
+            .eth_estimate_user_operation_gas(user_op)
+            .await?;
         unimplemented!()
     }
 }
