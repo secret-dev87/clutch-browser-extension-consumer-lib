@@ -38,7 +38,7 @@ async fn main() -> eyre::Result<()> {
         .into();
 
     let ret = wallet_lib
-        .estimate_user_operation_gas(user_op, None)
+        .estimate_user_operation_gas(&mut user_op, None)
         .await?;
 
     println!("=============={ret}");

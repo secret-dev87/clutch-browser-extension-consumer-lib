@@ -15,7 +15,9 @@ use ethers::{
     types::{Address, U256},
 };
 
-use crate::utils::{abis::*, bundler::UserOpErrCodes, guardians::HookInputData};
+use crate::utils::{
+    abis::*, bundler::UserOpErrCodes, gas_overhead::calc_gas_overhead, guardians::HookInputData,
+};
 use ethers::core::types::H256;
 
 use super::bundler::{BundlerClient, UserOperationTransport};
@@ -338,10 +340,10 @@ impl WalletLib {
 
     pub async fn estimate_user_operation_gas(
         &mut self,
-        user_op: UserOperationTransport,
+        user_op: &mut UserOperationTransport,
         semi_valid_guard_hook_input_data: Option<GuardHookInputData>,
     ) -> eyre::Result<bool> {
-        let mut user_op = user_op.clone();
+        // let mut user_op = user_op.clone();
         if let Some(semi_valid_guard_input_data) = semi_valid_guard_hook_input_data.clone() {
             if semi_valid_guard_input_data.sender.ne(&user_op.sender) {
                 return Err(eyre::eyre!(
@@ -351,7 +353,7 @@ impl WalletLib {
                 ));
             }
 
-            if user_op.init_code.eq("0x".as_bytes()) {
+            if user_op.init_code.eq("".as_bytes()) {
                 return Err(eyre::eyre!(
                     "error code:{:?}, cannot set semi valid guard hook input data when the contract wallet is not deployed {}",
                     UserOpErrCodes::UnknownError,
@@ -373,19 +375,31 @@ impl WalletLib {
                 )
                 .await?;
 
-            println!(
-                "signature ret{}",
-                ethers::types::Bytes::from(signature_ret.clone())
-            );
             user_op.signature = ethers::types::Bytes::from(signature_ret);
         }
         self.bundler_client.init().await?;
 
         let user_op_gas_ret = self
             .bundler_client
-            .eth_estimate_user_operation_gas(user_op)
+            .eth_estimate_user_operation_gas(user_op.clone())
             .await?;
-        unimplemented!()
+        user_op.pre_verification_gas = user_op_gas_ret.pre_verification_gas;
+        user_op.verification_gas_limit = user_op_gas_ret.verification_gas_limit;
+
+        // Value of 'gas': Even number: automatic setting,
+        //                 Odd number: manually specified. Do not override!
+        let is_even = user_op.call_gas_limit % U256::from(2) == U256::from(0);
+        if is_even {
+            let mut new_call_gas_limit = user_op_gas_ret.call_gas_limit;
+            if new_call_gas_limit % U256::from(2) == U256::from(1) {
+                new_call_gas_limit = new_call_gas_limit.checked_add(U256::from(1)).unwrap();
+            }
+
+            user_op.call_gas_limit = new_call_gas_limit;
+        }
+
+        calc_gas_overhead(user_op.clone());
+        Ok(true)
     }
 }
 
