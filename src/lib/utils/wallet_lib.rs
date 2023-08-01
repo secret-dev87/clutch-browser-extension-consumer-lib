@@ -207,8 +207,7 @@ impl WalletLib {
                     e
                 )
             })?;
-
-        println!("init_code {}", ethers::types::Bytes::from(init_code.clone()));
+        
         let init_code = [self.wallet_factory_address.as_bytes(), init_code.as_ref()].concat();
 
         let user_operation = UserOperationTransport {
@@ -337,6 +336,7 @@ impl WalletLib {
         user_op: UserOperationTransport,
         semi_valid_guard_hook_input_data: Option<GuardHookInputData>,
     ) -> eyre::Result<bool> {
+        let mut user_op = user_op.clone();
         if let Some(semi_valid_guard_input_data) = semi_valid_guard_hook_input_data.clone() {
             if semi_valid_guard_input_data.sender.ne(&user_op.sender) {
                 return Err(eyre::eyre!(
@@ -355,8 +355,7 @@ impl WalletLib {
             }
         }
 
-        let semi_valid_signature = user_op.signature.eq_ignore_ascii_case("0x".as_bytes());
-
+        let semi_valid_signature = user_op.signature.eq_ignore_ascii_case("".as_bytes());        
         if semi_valid_signature {
             let signature = "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff".as_bytes().to_vec();
             let validation_data = (U256::from(68719476735 as u64) << U256::from(160))
@@ -365,7 +364,9 @@ impl WalletLib {
                 signature,
                 validation_data.to_string().into_bytes(),
                 semi_valid_guard_hook_input_data,
-            );
+            ).await?;
+
+            user_op.signature = ethers::types::Bytes::from(signature_ret);
         }
         self.bundler_client.init().await?;
 
