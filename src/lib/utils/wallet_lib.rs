@@ -398,7 +398,10 @@ impl WalletLib {
             user_op.call_gas_limit = new_call_gas_limit;
         }
 
-        calc_gas_overhead(user_op);
+        let _ = calc_gas_overhead(user_op);
+        if semi_valid_signature {
+            user_op.signature = ethers::types::Bytes::from(b"");
+        }
         Ok(true)
     }
 }

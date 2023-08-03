@@ -1,3 +1,4 @@
+use chrono::Utc;
 use clutch_wallet_lib::utils::wallet_lib::WalletLib;
 use ethers::{
     prelude::SignerMiddleware,
@@ -6,7 +7,6 @@ use ethers::{
     types::{Address, Chain, TransactionRequest, H256, U256},
     utils,
 };
-
 use std::str::FromStr;
 
 #[tokio::main]
@@ -47,8 +47,7 @@ async fn main() -> eyre::Result<()> {
         .estimate_user_operation_gas(&mut user_op, None)
         .await?;
 
-    let pre_fund_ret = wallet_lib.pre_fund(user_op).await?;
-    println!("======{:?}", pre_fund_ret);
+    let pre_fund_ret = wallet_lib.pre_fund(user_op.clone()).await?;
 
     // let provider = Provider
     let wallet = "5329363575be632f77c012647ecba5c2f1915617904214bbc57d92e4f4016007"
@@ -64,6 +63,20 @@ async fn main() -> eyre::Result<()> {
 
     let tx = provider.send_transaction(tx, None).await?.await?;
 
-    println!("Transaction Receipt: {}", serde_json::to_string(&tx)?);
+    // println!("Transaction Receipt: {}", serde_json::to_string(&tx)?);
+
+    let dt = Utc::now();
+    let valid_after = dt.timestamp() as u64;
+    let valid_until = dt.timestamp() as u64 + 3600;
+
+    let (packed_user_op_hash, validation_data) = wallet_lib
+        .pack_user_op_hash(user_op.clone(), Some(valid_after), Some(valid_until))
+        .await?;
+
+    println!(
+        "{:?}{:?}",
+        ethers::types::Bytes::from(packed_user_op_hash),
+        ethers::types::Bytes::from(validation_data)
+    );
     Ok(())
 }
