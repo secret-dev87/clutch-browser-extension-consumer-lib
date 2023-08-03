@@ -1,10 +1,9 @@
+use super::bundler::UserOperationTransport;
 use ethers::{
+    abi::{encode, encode_packed, FixedBytes, Token},
     types::{Address, U256},
     utils::keccak256,
-    abi::{encode, Token},
-    
 };
-use super::bundler::UserOperationTransport;
 
 pub fn get_user_op_hash(
     user_op: UserOperationTransport,
@@ -12,18 +11,20 @@ pub fn get_user_op_hash(
     chain_id: u64,
 ) -> eyre::Result<Vec<u8>> {
     let packed_op = pack_user_op(user_op, true)?;
+
     let user_op_hash = keccak256(packed_op);
+
     let enc = encode(&[
-        Token::FixedBytes(user_op_hash.to_vec()),
+        Token::FixedBytes(FixedBytes::from(user_op_hash)),
         Token::Address(entry_point_address),
-        Token::Uint(U256::from(chain_id))
+        Token::Uint(U256::from(chain_id)),
     ]);
-    Ok(enc)
+    Ok(keccak256(enc).to_vec())
 }
 
 pub fn pack_user_op(op: UserOperationTransport, for_signature: bool) -> eyre::Result<Vec<u8>> {
     if for_signature == true {
-        let ret =  encode(&[
+        let ret = encode(&[
             Token::Address(op.sender),
             Token::Uint(op.nonce),
             Token::FixedBytes(keccak256(op.init_code).to_vec()),
@@ -33,10 +34,10 @@ pub fn pack_user_op(op: UserOperationTransport, for_signature: bool) -> eyre::Re
             Token::Uint(op.pre_verification_gas),
             Token::Uint(op.max_fee_per_gas),
             Token::Uint(op.max_priority_fee_per_gas),
-            Token::FixedBytes(keccak256(op.paymaster_and_data).to_vec())
+            Token::FixedBytes(keccak256(op.paymaster_and_data).to_vec()),
         ]);
         return Ok(ret);
-    }else {
+    } else {
         let ret = encode(&[
             Token::Address(op.sender),
             Token::Uint(op.nonce),
