@@ -1,12 +1,13 @@
 use chrono::Utc;
 use clutch_wallet_lib::utils::wallet_lib::WalletLib;
 use ethers::{
-    prelude::SignerMiddleware,
+    prelude::*,
     providers::{Http, Middleware, Provider},
     signers::{LocalWallet, Signer},
     types::{Address, Chain, TransactionRequest, H256, U256},
     utils,
 };
+
 use std::str::FromStr;
 
 #[tokio::main]
@@ -14,12 +15,12 @@ async fn main() -> eyre::Result<()> {
     let mut wallet_lib = WalletLib::new(
         "http://localhost:8545",
         "http://localhost:3000/rpc",
-        "0x721ebda8f508e9de26d0a522d29679df34c7872b",
-        "0xa195222110a5cda82934735a5cb1f3599df5f5a8",
-        "0x6c3a9f19aa9c3c659fbf0ad6721ed48aba48f239",
-        "0x9670a43e5e820e920c10d3bb2f018571fedb9b6e",
+        "0x6eca9bac37ba92908805c68c2de7106dd15fde28",
+        "0xc4b4f2df5a4936aeda4df93ec203d6c6100bdb7f",
+        "0xf16e8831312c0a4b884e49a639083c2ec9cfd4f1",
+        "0x861adf70d644dfe2038775f648d2509190ee7579",
         "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789",
-        "0xbd9fe2927251593d1073bb4e5538c76a3afd816c",
+        "0x240c9cebe72a7f3010b40b5ef166be1ed56ddf44",
         1337,
     );
 
@@ -28,7 +29,7 @@ async fn main() -> eyre::Result<()> {
     let mut user_op = wallet_lib
         .create_unsigned_deploy_wallet_user_op(
             0,
-            "0xa98AEf09F2C28d858EeAC19B5611345DEF4188C3",
+            "0xAcE9A8ff06F144e414D21933AF3c3eF021b2d25b",
             zero_hash,
             "0x",
             None,
@@ -50,15 +51,17 @@ async fn main() -> eyre::Result<()> {
     let pre_fund_ret = wallet_lib.pre_fund(user_op.clone()).await?;
 
     // let provider = Provider
-    let wallet = "5329363575be632f77c012647ecba5c2f1915617904214bbc57d92e4f4016007"
+    //0x0E18aAb6d107E59C46936eb53eB3D4ccfcF5b5AE
+
+    let wallet = "9131cbad8e7e5369d670022b3ea8781d7ed83681a3720d3e551833816c2fb6a4"
         .parse::<LocalWallet>()
         .unwrap()
-        .with_chain_id(1337 as u64);
+        .with_chain_id(1337u64);
     let http = Provider::<Http>::try_from("http://localhost:8545")?;
-    let provider = SignerMiddleware::new(http.clone(), wallet.clone());
 
+    let provider = SignerMiddleware::new(http.clone(), wallet.clone());
     let tx = TransactionRequest::new()
-        .to(Address::from_str("0x0e5Dfa093a7b8274cCbee4c27F2f08368ec99CE5").unwrap())
+        .to(user_op.clone().sender)
         .value(U256::from(utils::parse_ether(1)?));
 
     let tx = provider.send_transaction(tx, None).await?.await?;
@@ -73,10 +76,13 @@ async fn main() -> eyre::Result<()> {
         .pack_user_op_hash(user_op.clone(), Some(valid_after), Some(valid_until))
         .await?;
 
-    println!(
-        "{:?}{:?}",
-        ethers::types::Bytes::from(packed_user_op_hash),
-        ethers::types::Bytes::from(validation_data)
-    );
+    let key_as_bytes = wallet.signer().to_bytes();
+    let signature = sign_message(packed_user_op_hash, wallet).await?;
+    Ok(())
+}
+
+async fn sign_message(msg: Vec<u8>, wallet: LocalWallet) -> eyre::Result<()> {
+    let signature = wallet.sign_message(msg).await?;
+    println!("===={:?}", signature);
     Ok(())
 }

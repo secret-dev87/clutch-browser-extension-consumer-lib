@@ -40,7 +40,6 @@ pub fn pack_user_op_hash(
 
     let validation_data = (valid_until << U256::from(160)) + (valid_after << U256::from(160 + 48));
 
-    println!("validation data{:?}", validation_data);
     let packed_user_op_hash = encode(&[
         Token::FixedBytes(FixedBytes::from(user_op_hash)),
         Token::Uint(validation_data),
