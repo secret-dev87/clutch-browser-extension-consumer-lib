@@ -260,10 +260,7 @@ impl WalletLib {
             ));
         }
 
-        let mul = match user_op
-            .paymaster_and_data
-            .eq_ignore_ascii_case("".as_bytes())
-        {
+        let mul = match user_op.paymaster_and_data.ne("".as_bytes()) {
             true => U256::from(3),
             false => U256::from(1),
         };
