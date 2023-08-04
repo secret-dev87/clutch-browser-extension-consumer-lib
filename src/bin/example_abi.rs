@@ -1,6 +1,7 @@
 use chrono::Utc;
 use clutch_wallet_lib::utils::wallet_lib::WalletLib;
 use ethers::{
+    abi::FixedBytes,
     prelude::*,
     providers::{Http, Middleware, Provider},
     signers::{LocalWallet, Signer},
@@ -78,11 +79,17 @@ async fn main() -> eyre::Result<()> {
 
     let key_as_bytes = wallet.signer().to_bytes();
     let signature = sign_message(packed_user_op_hash, wallet).await?;
+    println!(" ===== {:?}", ethers::types::Bytes::from(signature));
     Ok(())
 }
 
-async fn sign_message(msg: Vec<u8>, wallet: LocalWallet) -> eyre::Result<()> {
+async fn sign_message(msg: Vec<u8>, wallet: LocalWallet) -> eyre::Result<(Vec<u8>)> {
     let signature = wallet.sign_message(msg).await?;
-    println!("===={:?}", signature);
-    Ok(())
+    let mut signature_for_eth_sign = [
+        H256(U256::from(signature.r).try_into().unwrap()).to_fixed_bytes(),
+        H256(U256::from(signature.s).try_into().unwrap()).to_fixed_bytes(),
+    ]
+    .concat();
+    signature_for_eth_sign.extend_from_slice(&[(signature.v as u8)]);
+    Ok(signature_for_eth_sign)
 }
