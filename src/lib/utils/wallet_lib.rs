@@ -43,9 +43,9 @@ pub struct WalletLib {
 
 #[derive(Debug, Clone)]
 pub struct PreFund {
-    deposit: U256,
-    prefund: U256,
-    missfund: U256,
+    pub deposit: U256,
+    pub prefund: U256,
+    pub missfund: U256,
 }
 
 impl WalletLib {
@@ -290,6 +290,7 @@ impl WalletLib {
             prefund: required_prefund,
             missfund: missfund,
         };
+        println!("======{:?}", ret.clone());
         Ok(ret)
     }
 

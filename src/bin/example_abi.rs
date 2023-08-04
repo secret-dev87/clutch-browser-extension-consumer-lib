@@ -63,7 +63,7 @@ async fn main() -> eyre::Result<()> {
     let provider = SignerMiddleware::new(http.clone(), wallet.clone());
     let tx = TransactionRequest::new()
         .to(user_op.clone().sender)
-        .value(U256::from(utils::parse_ether(1)?));
+        .value(pre_fund_ret.missfund);
 
     let tx = provider.send_transaction(tx, None).await?.await?;
 
@@ -89,7 +89,6 @@ async fn main() -> eyre::Result<()> {
     let balance = provider.get_balance(user_op.sender.clone(), None).await?;
     println!(" ===== {:?}", balance);
     // let ret = wallet_lib.send_user_operation(user_op).await?;
-    // println!(" ===== {:?}", ret);
     Ok(())
 }
 
