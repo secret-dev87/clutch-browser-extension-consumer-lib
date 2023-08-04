@@ -20,7 +20,7 @@ pub fn pack_user_op_hash(
     user_op_hash: Vec<u8>,
     valid_after: Option<u64>,
     valid_until: Option<u64>,
-) -> eyre::Result<(Vec<u8>, Vec<u8>)> {
+) -> eyre::Result<(Vec<u8>, U256)> {
     if user_op_hash.len() != 32 {
         return Err(eyre::eyre!("invalid userOpHash"));
     }
@@ -32,7 +32,7 @@ pub fn pack_user_op_hash(
     } else if valid_after != None || valid_until != None {
         return Err(eyre::eyre!("invalid valid after and valid until"));
     } else {
-        return Ok((user_op_hash, ethers::types::Bytes::from(b"").to_vec()));
+        return Ok((user_op_hash, U256::from(0)));
     }
 
     let valid_after = U256::from(valid_after.unwrap());
@@ -45,12 +45,7 @@ pub fn pack_user_op_hash(
         Token::Uint(validation_data),
     ]);
 
-    return Ok((
-        keccak256(packed_user_op_hash).to_vec(),
-        H256(validation_data.try_into().unwrap())
-            .to_fixed_bytes()
-            .to_vec(),
-    ));
+    return Ok((keccak256(packed_user_op_hash).to_vec(), validation_data));
 }
 
 pub fn pack_signature(

@@ -304,7 +304,7 @@ impl WalletLib {
         user_op: UserOperationTransport,
         valid_after: Option<u64>,
         valid_until: Option<u64>,
-    ) -> eyre::Result<(Vec<u8>, Vec<u8>)> {
+    ) -> eyre::Result<(Vec<u8>, U256)> {
         let user_op_hash = self.user_op_hash(user_op).await?;
         let ret = pack_user_op_hash(user_op_hash, valid_after, valid_until).unwrap();
         Ok(ret)
@@ -402,6 +402,21 @@ impl WalletLib {
         if semi_valid_signature {
             user_op.signature = ethers::types::Bytes::from(b"");
         }
+        Ok(true)
+    }
+
+    pub async fn send_user_operation(&self, user_op: UserOperationTransport) -> eyre::Result<bool> {
+        let send_user_op_ret = self
+            .bundler_client
+            .eth_send_user_operation(user_op.clone())
+            .await?;
+
+        let user_op_hash_local = self.user_op_hash(user_op).await?;
+
+        if send_user_op_ret.eq_ignore_ascii_case(&user_op_hash_local) == false {
+            eyre::eyre!("user_op_hash != user_op_hash_local");
+        }
+
         Ok(true)
     }
 }

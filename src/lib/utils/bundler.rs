@@ -164,16 +164,14 @@ impl BundlerClient {
     pub async fn eth_send_user_operation(
         &self,
         user_operation_transport: UserOperationTransport,
-    ) -> eyre::Result<String> {
+    ) -> eyre::Result<Vec<u8>> {
         let provider = Http::from_str(self.bundler_api.as_str())?;
 
-        let user_op_list = UserOperationList {
-            entry_point_address: self.entry_point_address,
-            user_operation: user_operation_transport,
-        };
-
-        let user_operation_hash: String = provider
-            .request("eth_sendUserOperation", user_op_list)
+        let user_operation_hash: Vec<u8> = provider
+            .request(
+                "eth_sendUserOperation",
+                (user_operation_transport, self.entry_point_address),
+            )
             .await?;
 
         Ok(user_operation_hash)

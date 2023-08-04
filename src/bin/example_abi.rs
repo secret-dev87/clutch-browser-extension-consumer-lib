@@ -77,9 +77,19 @@ async fn main() -> eyre::Result<()> {
         .pack_user_op_hash(user_op.clone(), Some(valid_after), Some(valid_until))
         .await?;
 
-    let key_as_bytes = wallet.signer().to_bytes();
+    // let key_as_bytes = wallet.signer().to_bytes();
+    // let private_key = hex::encode(key_as_bytes);
     let signature = sign_message(packed_user_op_hash, wallet).await?;
-    println!(" ===== {:?}", ethers::types::Bytes::from(signature));
+    let packed_signature_ret = wallet_lib
+        .pack_user_op_signature(signature, validation_data, None)
+        .await?;
+
+    user_op.signature = ethers::types::Bytes::from(packed_signature_ret);
+
+    let balance = provider.get_balance(user_op.sender.clone(), None).await?;
+    println!(" ===== {:?}", balance);
+    // let ret = wallet_lib.send_user_operation(user_op).await?;
+    // println!(" ===== {:?}", ret);
     Ok(())
 }
 
