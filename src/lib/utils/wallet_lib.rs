@@ -410,11 +410,10 @@ impl WalletLib {
             .await?;
 
         let user_op_hash_local = self.user_op_hash(user_op).await?;
-
+        // println!("{}", Bytes::from(user_op_hash_local.clone()));
         if send_user_op_ret.eq_ignore_ascii_case(&user_op_hash_local) == false {
-            eyre::eyre!("user_op_hash != user_op_hash_local");
+            return Err(eyre::eyre!("user_op_hash != user_op_hash_local"));
         }
-
         Ok(true)
     }
 }

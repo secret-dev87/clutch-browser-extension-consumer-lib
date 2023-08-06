@@ -1,6 +1,6 @@
 use ethers::{
     providers::{Http, JsonRpcClient, Middleware, Provider},
-    types::{Address, U256},
+    types::{Address, Bytes, U256},
 };
 use std::str::FromStr;
 
@@ -164,16 +164,17 @@ impl BundlerClient {
     pub async fn eth_send_user_operation(
         &self,
         user_operation_transport: UserOperationTransport,
-    ) -> eyre::Result<Vec<u8>> {
+    ) -> eyre::Result<Bytes> {
         let provider = Http::from_str(self.bundler_api.as_str())?;
 
-        let user_operation_hash: Vec<u8> = provider
+        let user_operation_hash: Bytes = provider
             .request(
                 "eth_sendUserOperation",
                 (user_operation_transport, self.entry_point_address),
             )
             .await?;
 
+        // println!("{}", user_operation_hash);
         Ok(user_operation_hash)
     }
 

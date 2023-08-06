@@ -2,7 +2,7 @@ use chrono::Utc;
 use clutch_wallet_lib::utils::wallet_lib::WalletLib;
 use ethers::{
     abi::FixedBytes,
-    prelude::*,
+    prelude::{rand::thread_rng, *},
     providers::{Http, Middleware, Provider},
     signers::{LocalWallet, Signer},
     types::{Address, Chain, TransactionRequest, H256, U256},
@@ -27,10 +27,11 @@ async fn main() -> eyre::Result<()> {
 
     let zero_hash: H256 = [0u8; 32].into();
 
-    let wallet_signer = "f7383a67d5e71ba14e2d64fb083e5cd58398b77466ed911631cdb4e792a9c3bc"
-        .parse::<LocalWallet>()
-        .unwrap()
-        .with_chain_id(1337u64);
+    let wallet_signer = LocalWallet::new(&mut thread_rng()).with_chain_id(1337u64);
+    // let wallet_signer = "f7383a67d5e71ba14e2d64fb083e5cd58398b77466ed911631cdb4e792a9c3bc"
+    //     .parse::<LocalWallet>()
+    //     .unwrap()
+    //     .with_chain_id(1337u64);
 
     println!("{:?}", wallet_signer.address().to_string());
     let mut user_op = wallet_lib
