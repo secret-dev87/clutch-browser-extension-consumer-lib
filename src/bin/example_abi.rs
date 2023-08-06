@@ -27,14 +27,14 @@ async fn main() -> eyre::Result<()> {
 
     let zero_hash: H256 = [0u8; 32].into();
 
+    let wallet_signer = "f7383a67d5e71ba14e2d64fb083e5cd58398b77466ed911631cdb4e792a9c3bc"
+        .parse::<LocalWallet>()
+        .unwrap()
+        .with_chain_id(1337u64);
+
+    println!("{:?}", wallet_signer.address().to_string());
     let mut user_op = wallet_lib
-        .create_unsigned_deploy_wallet_user_op(
-            0,
-            "0xAcE9A8ff06F144e414D21933AF3c3eF021b2d25b",
-            zero_hash,
-            "0x",
-            None,
-        )
+        .create_unsigned_deploy_wallet_user_op(0, wallet_signer.address(), zero_hash, "0x", None)
         .await?;
 
     let gas_price = "100"; // gwei
@@ -67,8 +67,6 @@ async fn main() -> eyre::Result<()> {
 
     let tx = provider.send_transaction(tx, None).await?.await?;
 
-    // println!("Transaction Receipt: {}", serde_json::to_string(&tx)?);
-
     let dt = Utc::now();
     let valid_after = dt.timestamp() as u64;
     let valid_until = dt.timestamp() as u64 + 3600;
@@ -79,7 +77,7 @@ async fn main() -> eyre::Result<()> {
 
     // let key_as_bytes = wallet.signer().to_bytes();
     // let private_key = hex::encode(key_as_bytes);
-    let signature = sign_message(packed_user_op_hash, wallet).await?;
+    let signature = sign_message(packed_user_op_hash, wallet_signer).await?;
     let packed_signature_ret = wallet_lib
         .pack_user_op_signature(signature, validation_data, None)
         .await?;
@@ -88,7 +86,7 @@ async fn main() -> eyre::Result<()> {
 
     let balance = provider.get_balance(user_op.sender.clone(), None).await?;
     println!(" ===== {:?}", balance);
-    // let ret = wallet_lib.send_user_operation(user_op).await?;
+    let ret = wallet_lib.send_user_operation(user_op).await?;
     Ok(())
 }
 

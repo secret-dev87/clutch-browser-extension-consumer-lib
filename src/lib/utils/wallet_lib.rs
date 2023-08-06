@@ -153,11 +153,11 @@ impl WalletLib {
     pub async fn calc_wallet_address(
         &self,
         index: i32,
-        initial_key: &str,
+        initial_key: Address,
         initial_guard_hash: H256,
         initial_guardian_safeperiod: Option<i32>,
     ) -> eyre::Result<Address> {
-        let initial_key = initial_key.parse::<Address>().unwrap();
+        // let initial_key = initial_key.parse::<Address>().unwrap();
         let initialize_data = self
             .initialize_data(initial_key, initial_guard_hash, initial_guardian_safeperiod)
             .await?;
@@ -181,7 +181,7 @@ impl WalletLib {
     pub async fn create_unsigned_deploy_wallet_user_op(
         &self,
         index: i32,
-        initial_key: &str,
+        initial_key: Address,
         initial_guard_hash: H256,
         call_data: &str,
         initial_guardian_safeperiod: Option<i32>,
@@ -196,7 +196,7 @@ impl WalletLib {
             .await?;
 
         let abi = abi_soul_wallet_factory();
-        let initial_key = initial_key.parse::<Address>().unwrap();
+        // let initial_key = initial_key.parse::<Address>().unwrap();
         let initialize_data = self
             .initialize_data(initial_key, initial_guard_hash, initial_guardian_safeperiod)
             .await?;
