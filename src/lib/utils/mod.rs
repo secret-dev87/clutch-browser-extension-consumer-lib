@@ -6,4 +6,5 @@ pub mod deploy_wallet_factory;
 pub mod gas_overhead;
 pub mod guardians;
 pub mod signatures;
+pub mod type_guard;
 pub mod wallet_lib;

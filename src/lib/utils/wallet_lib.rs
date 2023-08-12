@@ -1,4 +1,5 @@
 use std::{
+    arch::x86_64::_CMP_TRUE_UQ,
     convert::TryInto,
     fs::File,
     io::Read,
@@ -10,13 +11,14 @@ use std::{
 use ethers::{
     abi::{self, encode, FixedBytes, Token},
     contract::encode_function_data,
-    prelude::*,
+    prelude::{contract::call, *},
     providers::Provider,
     types::{Address, U256},
 };
 
 use crate::utils::{
     abis::*, bundler::UserOpErrCodes, gas_overhead::calc_gas_overhead, guardians::HookInputData,
+    type_guard,
 };
 use ethers::core::types::H256;
 
@@ -46,6 +48,14 @@ pub struct PreFund {
     pub deposit: U256,
     pub prefund: U256,
     pub missfund: U256,
+}
+
+#[derive(Debug, Clone)]
+pub struct Transaction {
+    pub to: Address,
+    pub value: Option<U256>,
+    pub data: Option<Bytes>,
+    pub gas_limit: Option<U256>,
 }
 
 impl WalletLib {
@@ -415,6 +425,132 @@ impl WalletLib {
             return Err(eyre::eyre!("user_op_hash != user_op_hash_local"));
         }
         Ok(true)
+    }
+
+    pub async fn get_nonce(
+        &self,
+        wallet_address: Address,
+        nonce_key: Option<Bytes>,
+    ) -> eyre::Result<U256> {
+        let key = match nonce_key {
+            Some(_key) => _key,
+            None => Bytes::from_str("").unwrap(),
+        };
+        let key = type_guard::max_to_uint192(key).unwrap();
+        let provider = Provider::<Http>::try_from(self.provider.clone())?;
+        let entry_point_contract =
+            super::abis::EntryPointContract::new(self.entry_point_address, Arc::new(provider));
+        let nonce = entry_point_contract.get_nonce(wallet_address, key).await?;
+        Ok(nonce)
+    }
+
+    pub async fn from_transaction(
+        &self,
+        max_fee_per_gas: U256,
+        max_priority_fee_per_gas: U256,
+        from: Address,
+        txs: Vec<Transaction>,
+        nonce_key: Option<Bytes>,
+    ) -> eyre::Result<UserOperationTransport> {
+        if txs.len() == 0 {
+            return Err(eyre::eyre!("txs.length == 0"));
+        }
+
+        if let Ok(ret) = self.wallet_deployed(&from).await {
+            if ret == false {
+                return Err(eyre::eyre!("{} is not a deployed contract", from));
+            }
+        }
+
+        let mut call_gas_limit = U256::zero();
+        for tx in txs.iter() {
+            call_gas_limit = match tx.gas_limit {
+                Some(limit) => call_gas_limit.checked_add(limit).unwrap(),
+                None => U256::zero(),
+            }
+        }
+
+        call_gas_limit = match call_gas_limit.div_mod(U256::from(2)) {
+            (divide, remain) if remain == U256::from(2) => {
+                call_gas_limit.checked_add(U256::from(1)).unwrap()
+            }
+            _ => call_gas_limit,
+        };
+
+        let nonce_ret = self.get_nonce(from, nonce_key).await?;
+
+        let mut call_data: Bytes = Bytes::from(b"");
+        let mut to: Vec<Token> = Vec::new();
+        let mut values: Vec<Token> = Vec::new();
+        let mut data: Vec<Token> = Vec::new();
+        let mut has_value = false;
+
+        let abi = abi_soul_wallet();
+
+        for tx in txs.iter() {
+            to.push(Token::Address(tx.to));
+            let value = match tx.value {
+                Some(val) => {
+                    has_value = true;
+                    val
+                }
+                None => U256::zero(),
+            };
+            values.push(Token::Uint(value));
+            let element_data = match tx.data.clone() {
+                Some(data) => data,
+                None => Bytes::from(b""),
+            };
+            data.push(Token::Bytes(element_data.to_vec()))
+        }
+
+        if txs.len() > 1 {
+            if has_value {
+                call_data = encode_function_data(
+                    abi.function("executeBatchexecuteBatch")?,
+                    (Token::Array(to), Token::Array(values), Token::Array(data)),
+                )
+                .unwrap();
+            } else {
+                call_data = encode_function_data(
+                    abi.function("executeBatch")?,
+                    (Token::Array(to), Token::Array(data)),
+                )
+                .unwrap();
+            }
+        } else {
+            call_data = encode_function_data(
+                abi.function("execute")?,
+                (to[0].clone(), values[0].clone(), data[0].clone()),
+            )
+            .unwrap();
+        }
+
+        let user_operation = UserOperationTransport {
+            sender: from,
+            nonce: nonce_ret,
+            init_code: Bytes::from(b""),
+            call_data: call_data,
+            call_gas_limit: call_gas_limit,
+            verification_gas_limit: U256::zero(),
+            pre_verification_gas: U256::zero(),
+            max_fee_per_gas: max_fee_per_gas,
+            max_priority_fee_per_gas: max_priority_fee_per_gas,
+            paymaster_and_data: Bytes::from(b""),
+            signature: Bytes::from(b""),
+        };
+
+        Ok(user_operation)
+    }
+
+    async fn wallet_deployed(&self, wallet_addr: &Address) -> eyre::Result<bool> {
+        let provider = Provider::<Http>::try_from(self.provider.clone())?;
+        let code = provider.get_code(*wallet_addr, None).await?;
+        let no_code = Bytes::from_str("").unwrap();
+        match code.eq(&no_code) {
+            true => Ok(false),
+            false => Ok(false),
+        }
     }
 }
 

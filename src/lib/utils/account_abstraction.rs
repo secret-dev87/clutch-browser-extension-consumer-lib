@@ -54,32 +54,3 @@ pub fn pack_user_op(op: UserOperationTransport, for_signature: bool) -> eyre::Re
         return Ok(ret);
     };
 }
-
-// impl UserOperationTransport {
-
-//     pub fn get_user_op_hash_with_time_range(&self, entry_point_address: Address, chain_id: u64, wallet_owner_address: Address, signature_mode: SignatureMode, validAfter: U256, validUntil: U256) -> eyre::Result<()> {
-//         if validUntil < validAfter {
-//             return Err(eyre::eyre!("validUntil must be greater than validAfter"));
-//         }
-
-//         let hash = self.get_user_op_hash(entry_point_address, chain_id);
-//         Ok(())
-//     }
-
-//     pub fn alignment(&self) -> eyre::Result<UserOperationTransportString>{
-//        Ok(UserOperationTransportString {
-//         sender: self.sender,
-//         nonce: hex::encode(format!("{:#x}", self.nonce)),
-//         init_code: self.init_code,
-//         call_data: self.call_data,
-//         call_gas_limit: hex::encode(format!("{:#x}", self.call_data)),
-//         verification_gas_limit: hex::encode(format!("{:#x}", self.verification_gas_limit)),
-//         pre_verification_gas: hex::encode(format!("{:#x}", self.pre_verification_gas)),
-//         max_fee_per_gas: hex::encode(format!("{:#x}", self.max_fee_per_gas)),
-//         max_priority_fee_per_gas: hex::encode(format!("{:#x}", self.max_priority_fee_per_gas)),
-//         paymaster_and_data: self.paymaster_and_data,
-//         signature: self.signature,
-//        })
-//     }
-
-// }
