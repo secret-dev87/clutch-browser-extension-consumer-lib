@@ -1,5 +1,4 @@
 use std::{
-    arch::x86_64::_CMP_TRUE_UQ,
     convert::TryInto,
     fs::File,
     io::Read,
@@ -11,7 +10,7 @@ use std::{
 use ethers::{
     abi::{self, encode, FixedBytes, Token},
     contract::encode_function_data,
-    prelude::{contract::call, *},
+    prelude::*,
     providers::Provider,
     types::{Address, U256},
 };
