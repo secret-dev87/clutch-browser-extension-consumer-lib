@@ -546,10 +546,19 @@ impl WalletLib {
         let provider = Provider::<Http>::try_from(self.provider.clone())?;
         let code = provider.get_code(*wallet_addr, None).await?;
         let no_code = Bytes::from_str("").unwrap();
+
         match code.eq(&no_code) {
             true => Ok(false),
-            false => Ok(false),
+            false => Ok(true),
         }
+    }
+
+    pub fn entrypoint(&self) -> Address {
+        self.entry_point_address.clone()
+    }
+
+    pub fn bundler(&self) -> BundlerClient {
+        self.bundler_client.clone()
     }
 }
 
@@ -570,6 +579,14 @@ pub fn abi_soul_wallet() -> abi::Abi {
 
 pub fn abi_soul_wallet_factory() -> abi::Abi {
     let abi_path = generated_contract_path("soulwalletfactory");
+    let mut file = File::open(abi_path).unwrap();
+    let mut abi_json = String::new();
+    let _ = file.read_to_string(&mut abi_json).unwrap();
+    serde_json::from_str::<ethers::abi::Contract>(&abi_json).unwrap()
+}
+
+pub fn abi_entry_point() -> abi::Abi {
+    let abi_path = generated_contract_path("entrypoint");
     let mut file = File::open(abi_path).unwrap();
     let mut abi_json = String::new();
     let _ = file.read_to_string(&mut abi_json).unwrap();
