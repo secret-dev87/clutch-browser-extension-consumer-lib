@@ -23,18 +23,17 @@ pub struct UserOperationTransport {
     pub signature: ::ethers::core::types::Bytes,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct UserOpReceipt {
     pub user_op_hash: ::ethers::core::types::Bytes,
-    pub entry_point: ::ethers::core::types::Address,
     pub sender: ::ethers::core::types::Address,
     pub nonce: ::ethers::core::types::U256,
-    pub paymaster: ::ethers::core::types::Address,
+    pub paymaster: Option<::ethers::core::types::Address>,
     pub actual_gas_cost: ::ethers::core::types::U256,
     pub actual_gas_used: ::ethers::core::types::U256,
     pub success: bool,
-    pub reason: ::ethers::core::types::Bytes,
+    pub reason: Option<::ethers::core::types::Bytes>,
     pub logs: Vec<::ethers::core::types::Log>,
     pub receipt: ::ethers::core::types::TransactionReceipt,
 }
@@ -225,9 +224,8 @@ impl BundlerClient {
     ) -> eyre::Result<Option<UserOpReceipt>> {
         let provider = Http::from_str(self.bundler_api.as_str())?;
         let ret: Option<UserOpReceipt> = provider
-            .request("eth_getUserOperationReceipt", user_op_hash)
+            .request("eth_getUserOperationReceipt", [user_op_hash])
             .await?;
-
         Ok(ret)
     }
 }

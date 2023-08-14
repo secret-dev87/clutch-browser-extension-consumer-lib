@@ -141,8 +141,10 @@ async fn main() -> eyre::Result<()> {
         )
         .await?;
 
-    let _ = wallet_lib.estimate_user_operation_gas(&mut user_op_tx, None);
-    println!("user_op_tx {:?}", user_op_tx);
+    let _ = wallet_lib
+        .estimate_user_operation_gas(&mut user_op_tx, None)
+        .await?;
+    // println!("user_op_tx {:?}", user_op_tx);
     let (packed_user_op_hash, validation_data) = wallet_lib
         .pack_user_op_hash(user_op_tx.clone(), Some(valid_after), Some(valid_until))
         .await?;
@@ -159,8 +161,9 @@ async fn main() -> eyre::Result<()> {
         .await?;
     println!(" user_op_tx sender {:?}", user_op_tx.sender.clone());
     println!(" before balance {:?}", balance);
-    let ret = wallet_lib.send_user_operation(user_op_tx.clone()).await?;
-    let user_op_hash_tx = wallet_lib.user_op_hash(user_op_tx).await?;
+    let _ = wallet_lib.send_user_operation(user_op_tx.clone()).await?;
+    let user_op_hash_tx = wallet_lib.user_op_hash(user_op_tx.clone()).await?;
+
     loop {
         let receipt = wallet_lib
             .bundler()
@@ -169,6 +172,8 @@ async fn main() -> eyre::Result<()> {
         if receipt.is_none() {
             thread::sleep(Duration::from_secs(3));
             println!("Wait until the tx is minted");
+        } else {
+            break;
         }
     }
 

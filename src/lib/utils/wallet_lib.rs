@@ -350,7 +350,7 @@ impl WalletLib {
         user_op: &mut UserOperationTransport,
         semi_valid_guard_hook_input_data: Option<GuardHookInputData>,
     ) -> eyre::Result<bool> {
-        // let mut user_op = user_op.clone();
+        println!("=========================");
         if let Some(semi_valid_guard_input_data) = semi_valid_guard_hook_input_data.clone() {
             if semi_valid_guard_input_data.sender.ne(&user_op.sender) {
                 return Err(eyre::eyre!(
@@ -390,6 +390,8 @@ impl WalletLib {
             .bundler_client
             .eth_estimate_user_operation_gas(user_op.clone())
             .await?;
+
+        println!("user_op_gas_ret, {:?}", user_op_gas_ret);
         user_op.pre_verification_gas = user_op_gas_ret.pre_verification_gas;
         user_op.verification_gas_limit = user_op_gas_ret.verification_gas_limit;
 
