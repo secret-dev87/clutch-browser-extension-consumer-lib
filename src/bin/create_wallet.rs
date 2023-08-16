@@ -18,7 +18,7 @@ async fn main() -> eyre::Result<()> {
         "http://localhost:3000/rpc",
         "0x6eca9bac37ba92908805c68c2de7106dd15fde28",
         "0xc4b4f2df5a4936aeda4df93ec203d6c6100bdb7f",
-        "0xf16e8831312c0a4b884e49a639083c2ec9cfd4f1",
+        "0x9cef0d6889154f56fc266c9e54250cbc5c0c9bfe",
         "0x861adf70d644dfe2038775f648d2509190ee7579",
         "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789",
         "0x240c9cebe72a7f3010b40b5ef166be1ed56ddf44",
