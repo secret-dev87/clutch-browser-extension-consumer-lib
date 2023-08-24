@@ -350,7 +350,6 @@ impl WalletLib {
         user_op: &mut UserOperationTransport,
         semi_valid_guard_hook_input_data: Option<GuardHookInputData>,
     ) -> eyre::Result<bool> {
-        println!("=========================");
         if let Some(semi_valid_guard_input_data) = semi_valid_guard_hook_input_data.clone() {
             if semi_valid_guard_input_data.sender.ne(&user_op.sender) {
                 return Err(eyre::eyre!(
@@ -542,6 +541,18 @@ impl WalletLib {
         };
 
         Ok(user_operation)
+    }
+
+    pub async fn paymaster_and_data(pay_token: Address, paymaster: Address) -> eyre::Result<Bytes> {
+        if pay_token == Address::zero() {
+            return Ok(Bytes::from(b""));
+        }
+
+        let mut ret: Vec<u8> = Vec::new();
+        ret.extend_from_slice(paymaster.as_bytes());
+        let encode = encode(&[Token::Address(pay_token), Token::Int(ethers::utils::parse_ether(1000).unwrap())]);
+        ret.extend_from_slice(&encode);
+        return Ok(Bytes::from(ret))
     }
 
     async fn wallet_deployed(&self, wallet_addr: &Address) -> eyre::Result<bool> {
