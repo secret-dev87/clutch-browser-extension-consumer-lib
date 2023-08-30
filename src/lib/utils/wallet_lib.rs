@@ -43,18 +43,41 @@ pub struct WalletLib {
 }
 
 #[derive(Debug, Clone)]
+pub struct WalletInstance;
+
+#[derive(Debug, Clone)]
 pub struct PreFund {
     pub deposit: U256,
     pub prefund: U256,
     pub missfund: U256,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Transaction {
     pub to: Address,
     pub value: Option<U256>,
     pub data: Option<Bytes>,
     pub gas_limit: Option<U256>,
+}
+
+impl WalletInstance {
+    fn approve(address: Address, amount: U256) -> eyre::Result<Bytes> {
+        let erc20_abi = abi_erc20();
+        let approve_call_data = encode_function_data(
+            erc20_abi.function("approve")?,
+            (Token::Address(address), Token::Uint(amount)),
+        )?;
+        Ok(approve_call_data)
+    }
+
+    pub fn execute_batch(token_addresses: Vec<Address>, data: Vec<Bytes>) -> eyre::Result<Bytes> {
+        let mut tokens = token_addresses.into_iter().map(|item| Token::Address(item)).collect::<Vec<Token>>();
+        let mut batch_data = data.into_iter().map(|d| Token::Bytes(d.to_vec())).collect::<Vec<Token>>();
+        let clutch_abi = abi_clutch_wallet();
+        let call_data =
+            encode_function_data(clutch_abi.function("executeBatch")?, (Token::Array(tokens), Token::Array(batch_data)))?;
+        Ok(call_data)
+    }
 }
 
 impl WalletLib {
@@ -76,6 +99,7 @@ impl WalletLib {
             http_provider,
             bundler.to_string(),
         );
+
         Self {
             provider: provider.to_string(),
             bundler: bundler.to_string(),
@@ -141,7 +165,7 @@ impl WalletLib {
         ]);
         key_store_module_and_data.extend_from_slice(&key_store_init_data);
 
-        let abi = abi_soul_wallet();
+        let abi = abi_clutch_wallet();
         let initialize_data = encode_function_data(
             abi.function("initialize")?,
             (
@@ -204,7 +228,7 @@ impl WalletLib {
             )
             .await?;
 
-        let abi = abi_soul_wallet_factory();
+        let abi = abi_clutch_wallet_factory();
         // let initial_key = initial_key.parse::<Address>().unwrap();
         let initialize_data = self
             .initialize_data(initial_key, initial_guard_hash, initial_guardian_safeperiod)
@@ -485,7 +509,7 @@ impl WalletLib {
         let mut data: Vec<Token> = Vec::new();
         let mut has_value = false;
 
-        let abi = abi_soul_wallet();
+        let abi = abi_clutch_wallet();
 
         for tx in txs.iter() {
             to.push(Token::Address(tx.to));
@@ -550,9 +574,22 @@ impl WalletLib {
 
         let mut ret: Vec<u8> = Vec::new();
         ret.extend_from_slice(paymaster.as_bytes());
-        let encode = encode(&[Token::Address(pay_token), Token::Int(ethers::utils::parse_ether(1000).unwrap())]);
+        let encode = encode(&[
+            Token::Address(pay_token),
+            Token::Int(ethers::utils::parse_ether(1000).unwrap()),
+        ]);
         ret.extend_from_slice(&encode);
-        return Ok(Bytes::from(ret))
+        return Ok(Bytes::from(ret));
+    }
+
+    pub fn transfer_erc20_calldata(token: Address, amount: U256) -> eyre::Result<Bytes> {
+        let abi = abi_erc20();
+        let calldata = encode_function_data(
+            abi.function("transfer")?,
+            (Token::Address(token), Token::Uint(amount)),
+        )
+        .unwrap();
+        return Ok(calldata);
     }
 
     async fn wallet_deployed(&self, wallet_addr: &Address) -> eyre::Result<bool> {
@@ -582,7 +619,14 @@ fn generated_contract_path(contract: &str) -> PathBuf {
     path.join(contract_path)
 }
 
-pub fn abi_soul_wallet() -> abi::Abi {
+fn standard_contract_path(contract: &str) -> PathBuf {
+    let current_file = file!();
+    let path = Path::new(current_file).parent().unwrap();
+    let contract_path = format!("../abi/{contract}.json");
+    path.join(contract_path)
+}
+
+pub fn abi_clutch_wallet() -> abi::Abi {
     let abi_path = generated_contract_path("soulwallet");
     let mut file = File::open(abi_path).unwrap();
     let mut abi_json = String::new();
@@ -590,7 +634,7 @@ pub fn abi_soul_wallet() -> abi::Abi {
     serde_json::from_str::<ethers::abi::Contract>(&abi_json).unwrap()
 }
 
-pub fn abi_soul_wallet_factory() -> abi::Abi {
+pub fn abi_clutch_wallet_factory() -> abi::Abi {
     let abi_path = generated_contract_path("soulwalletfactory");
     let mut file = File::open(abi_path).unwrap();
     let mut abi_json = String::new();
@@ -600,6 +644,22 @@ pub fn abi_soul_wallet_factory() -> abi::Abi {
 
 pub fn abi_entry_point() -> abi::Abi {
     let abi_path = generated_contract_path("entrypoint");
+    let mut file = File::open(abi_path).unwrap();
+    let mut abi_json = String::new();
+    let _ = file.read_to_string(&mut abi_json).unwrap();
+    serde_json::from_str::<ethers::abi::Contract>(&abi_json).unwrap()
+}
+
+pub fn abi_erc20() -> abi::Abi {
+    let abi_path = standard_contract_path("ERC20");
+    let mut file = File::open(abi_path).unwrap();
+    let mut abi_json = String::new();
+    let _ = file.read_to_string(&mut abi_json).unwrap();
+    serde_json::from_str::<ethers::abi::Contract>(&abi_json).unwrap()
+}
+
+pub fn abi_erc721() -> abi::Abi {
+    let abi_path = standard_contract_path("ERC721");
     let mut file = File::open(abi_path).unwrap();
     let mut abi_json = String::new();
     let _ = file.read_to_string(&mut abi_json).unwrap();
