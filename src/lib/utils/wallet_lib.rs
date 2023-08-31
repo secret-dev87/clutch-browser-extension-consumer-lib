@@ -61,7 +61,7 @@ pub struct Transaction {
 }
 
 impl WalletInstance {
-    fn approve(address: Address, amount: U256) -> eyre::Result<Bytes> {
+    pub fn approve(address: Address, amount: U256) -> eyre::Result<Bytes> {
         let erc20_abi = abi_erc20();
         let approve_call_data = encode_function_data(
             erc20_abi.function("approve")?,
@@ -71,11 +71,19 @@ impl WalletInstance {
     }
 
     pub fn execute_batch(token_addresses: Vec<Address>, data: Vec<Bytes>) -> eyre::Result<Bytes> {
-        let mut tokens = token_addresses.into_iter().map(|item| Token::Address(item)).collect::<Vec<Token>>();
-        let mut batch_data = data.into_iter().map(|d| Token::Bytes(d.to_vec())).collect::<Vec<Token>>();
+        let tokens = token_addresses
+            .into_iter()
+            .map(|item| Token::Address(item))
+            .collect::<Vec<Token>>();
+        let batch_data = data
+            .into_iter()
+            .map(|d| Token::Bytes(d.to_vec()))
+            .collect::<Vec<Token>>();
         let clutch_abi = abi_clutch_wallet();
-        let call_data =
-            encode_function_data(clutch_abi.function("executeBatch")?, (Token::Array(tokens), Token::Array(batch_data)))?;
+        let call_data = encode_function_data(
+            clutch_abi.function("executeBatch")?,
+            (Token::Array(tokens), Token::Array(batch_data)),
+        )?;
         Ok(call_data)
     }
 }
@@ -567,7 +575,7 @@ impl WalletLib {
         Ok(user_operation)
     }
 
-    pub async fn paymaster_and_data(pay_token: Address, paymaster: Address) -> eyre::Result<Bytes> {
+    pub async fn add_paymaster_and_data(pay_token: Address, paymaster: Address) -> eyre::Result<Bytes> {
         if pay_token == Address::zero() {
             return Ok(Bytes::from(b""));
         }
