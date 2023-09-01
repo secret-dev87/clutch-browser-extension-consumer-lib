@@ -24,6 +24,7 @@ httpmock = "0.6.7"
 once_cell = "1.17.1"
 serde_tuple = "0.5.0"
 chrono = "0.4.26"
+utoipa = { version = "3.5.0", features = ['axum_extras'] }
 
 [dev-dependencies]
 expectest = "0.12.0"

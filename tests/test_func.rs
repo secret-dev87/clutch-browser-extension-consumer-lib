@@ -8,7 +8,7 @@ use std::{
 
 use clutch_wallet_lib::utils::{
     constants::ETHER_ZERO_HASH,
-    wallet_lib::{abi_soul_wallet, WalletLib},
+    wallet_lib::{WalletLib},
 };
 use ethers::{
     abi::{FixedBytes, Token},

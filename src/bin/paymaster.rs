@@ -23,10 +23,10 @@ async fn main() -> eyre::Result<()> {
         1337,
     );
 
-    let paymaster_and_data = WalletLib::paymaster_and_data(
-        Address::from_str("0x07865c6e87b9f70255377e024ace6630c1eaa37f").unwrap(),
-        Address::from_str("0xee4d0d07318dd076d588bccdf2383275b499f29f").unwrap(),
-    ).await?;
-    println!("paymaster {:?}", paymaster_and_data);
+    // let paymaster_and_data = WalletLib::paymaster_and_data(
+    //     Address::from_str("0x07865c6e87b9f70255377e024ace6630c1eaa37f").unwrap(),
+    //     Address::from_str("0xee4d0d07318dd076d588bccdf2383275b499f29f").unwrap(),
+    // ).await?;
+    // println!("paymaster {:?}", paymaster_and_data);
     unimplemented!()
 }

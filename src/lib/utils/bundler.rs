@@ -6,8 +6,9 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 use serde_tuple::*;
+use utoipa::ToSchema;
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UserOperationTransport {
     pub sender: ::ethers::core::types::Address,
