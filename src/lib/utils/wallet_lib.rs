@@ -25,6 +25,7 @@ use super::bundler::{BundlerClient, UserOperationTransport};
 use super::guardians::GuardHookInputData;
 use super::signatures::pack_user_op_hash;
 use super::{account_abstraction::get_user_op_hash, signatures::pack_signature};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone)]
 pub struct WalletLib {
@@ -45,14 +46,15 @@ pub struct WalletLib {
 #[derive(Debug, Clone)]
 pub struct WalletInstance;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PreFund {
     pub deposit: U256,
     pub prefund: U256,
     pub missfund: U256,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Transaction {
     pub to: Address,
     pub value: Option<U256>,
@@ -576,7 +578,7 @@ impl WalletLib {
     }
 
     pub async fn add_paymaster_and_data(pay_token: Address, paymaster: Address) -> eyre::Result<Bytes> {
-        if pay_token == Address::zero() {
+        if pay_token.is_zero() == true {
             return Ok(Bytes::from(b""));
         }
 
