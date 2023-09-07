@@ -27,7 +27,7 @@ pub async fn smart_contract_code_generation() -> eyre::Result<()> {
         "SoulWallet",
         "SoulWalletFactory",
         "EntryPoint",
-        // "TokenPaymaster",
+        "KeyStore",
         // "GuardianMultiSigWallet",
         // "ClutchWalletProxy",
     ];
