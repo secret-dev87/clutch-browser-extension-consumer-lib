@@ -32,7 +32,7 @@ pub struct HookInputData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KeyStoreInfo {
-    key: Address,
+    key: Bytes,
     nonce: U256,
     guardian_hash: Bytes,
     pending_guardian_hash: Bytes,
@@ -144,10 +144,10 @@ impl L1KeyStore {
         let data: l1_key_store_contract::KeyStoreInfo = self
             .key_store_contract
             .get_key_store_info(slot.to_vec().try_into().unwrap())
-            .await?;
+            .await?;        
 
         let key_store_info = KeyStoreInfo {
-            key: Address::from_slice(&data.0),
+            key: Bytes::from(data.0),
             nonce: U256::from(data.1),
             guardian_hash: Bytes::from(data.2),
             pending_guardian_hash: Bytes::from(data.3),
@@ -163,30 +163,31 @@ impl L1KeyStore {
         l1_keystore_contract_addr: Address,
         slot: Bytes,
         nonce: U256,
-        data: Bytes,
+        data: H256,
     ) -> Bytes {
         let abi_encoded = encode(&[
             Token::Address(l1_keystore_contract_addr),
             Token::FixedBytes(FixedBytes::from(slot.to_vec())),
             Token::Uint(nonce),
-            Token::FixedBytes(FixedBytes::from(data.to_vec()))
+            Token::FixedBytes(FixedBytes::from(data.0))
         ]);
 
         let keccak256 = keccak256(abi_encoded);
         Bytes::from(keccak256)
     }
 
-    pub async fn get_set_key_sig_hash(&self, slot: Bytes, bytes32_key: Bytes)-> eyre::Result<Bytes> {
+    pub async fn get_set_key_sig_hash(&self, slot: Bytes, bytes32: H256)-> eyre::Result<Bytes> {
         let key_store_info = self.get_keystore_info(slot.clone()).await?;
+        
         let ret = L1KeyStore::get_sig_hash(
             self.key_store_contract_address, 
             slot, 
             key_store_info.nonce, 
-            bytes32_key);
+            bytes32);
         Ok(ret)
     }
 
-    pub async fn get_set_guardian_sig_hash(&self, slot: Bytes, guardian_hash: Bytes) -> eyre::Result<Bytes> {
+    pub async fn get_set_guardian_sig_hash(&self, slot: Bytes, guardian_hash: H256) -> eyre::Result<Bytes> {
         let key_store_info = self.get_keystore_info(slot.clone()).await?;
         let ret = L1KeyStore::get_sig_hash(
             self.key_store_contract_address, 
