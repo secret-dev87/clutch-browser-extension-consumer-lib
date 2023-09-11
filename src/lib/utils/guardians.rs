@@ -76,16 +76,16 @@ impl L1KeyStore {
 
     pub fn get_slot(
         &self,
-        initial_key: Bytes,
-        initial_guardian_hash: Bytes,
+        initial_key: H256,
+        initial_guardian_hash: H256,
         initial_guardian_safe_period: Option<i32>,
     ) -> Bytes {
         let safe_period = initial_guardian_safe_period.unwrap_or(self.days.as_u32() as i32 * 2);
 
         let initial_guardian_safe_period: H256 = format!("{:064x}", safe_period).parse().unwrap();
         let abi_encoded = encode(&[
-            Token::FixedBytes(FixedBytes::from(initial_key.to_vec())),
-            Token::FixedBytes(FixedBytes::from(initial_guardian_hash.to_vec())),
+            Token::FixedBytes(FixedBytes::from(initial_key.to_fixed_bytes())),
+            Token::FixedBytes(FixedBytes::from(initial_guardian_hash.to_fixed_bytes())),
             Token::FixedBytes(FixedBytes::from(
                 initial_guardian_safe_period.to_fixed_bytes(),
             )),
@@ -108,8 +108,8 @@ impl L1KeyStore {
     pub fn get_guardian_bytes(
         &self,
         guardians: Vec<Address>,
-        threshold: u32,
-        salt: u32,
+        threshold: i32,
+        salt: H256,
     ) -> eyre::Result<Bytes> {
         if guardians.len() == 0 {
             return Ok(Bytes::from(b""));
@@ -125,7 +125,7 @@ impl L1KeyStore {
                 let abi_encoded = encode(&[
                     Token::Array(token_addresses),
                     Token::Uint(U256::from(threshold)),
-                    Token::Uint(U256::from(salt)),
+                    Token::Uint(U256::from(salt.0)),
                 ]);
                 Ok(Bytes::from(abi_encoded))
             }
@@ -197,4 +197,13 @@ impl L1KeyStore {
         Ok(ret)
     }
 
+    pub fn calc_guardian_hash(&self, guardians: Vec<Address>, threshold: i32, salt: Option<H256>) -> Bytes {
+        if guardians.len() == 0 {
+            return Bytes::from(H256::zero().to_fixed_bytes());
+        }
+        let salt = salt.unwrap_or(H256::zero());
+        let abi_encoded = self.get_guardian_bytes(guardians, threshold, salt).unwrap();
+        let keccak256 = keccak256(abi_encoded);
+        Bytes::from(keccak256)
+    }
 }
