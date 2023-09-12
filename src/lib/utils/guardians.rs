@@ -107,14 +107,16 @@ impl L1KeyStore {
 
     pub fn get_guardian_bytes(
         &self,
-        guardians: Vec<Address>,
+        mut guardians: Vec<Address>,
         threshold: i32,
         salt: H256,
     ) -> eyre::Result<Bytes> {
         if guardians.len() == 0 {
             return Ok(Bytes::from(b""));
         }
+        guardians.sort_by(|a,b| { a.cmp(b)});
 
+        println!("guardian {:?}", guardians);
         match L1KeyStore::has_duplicate(guardians.clone()) {
             true => Err(eyre::eyre!("Guardian address is duplicated")),
             false => {
